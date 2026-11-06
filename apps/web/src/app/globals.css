@@ -1,0 +1,42 @@
+@import "tailwindcss";
+
+/*
+ * Technical design tokens established in Phase 0.
+ * The complete typographic and component system is built in Phase 1.
+ */
+@theme {
+  --color-background: #101211;
+  --color-background-secondary: #131614;
+  --color-surface: #171b19;
+  --color-surface-elevated: #1d2320;
+  --color-border: #2a312d;
+  --color-foreground: #f2f1eb;
+  --color-muted: #a6ada7;
+  --color-accent: #9de7c1;
+
+  --font-sans: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+* {
+  border-color: var(--color-border);
+}
+
+html {
+  background-color: var(--color-background);
+}
+
+body {
+  background-color: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+}
+
+::selection {
+  background-color: var(--color-accent);
+  color: var(--color-background);
+}

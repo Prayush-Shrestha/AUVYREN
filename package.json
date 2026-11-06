@@ -1,0 +1,32 @@
+{
+  "name": "auvyren",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Auvyren — a local-first personal operating system for clear thinking and intentional action.",
+  "workspaces": [
+    "apps/web"
+  ],
+  "scripts": {
+    "dev": "concurrently --names web,api --prefix-colors cyan,green \"npm:dev:web\" \"npm:dev:api\"",
+    "setup:env": "node scripts/setup-env.mjs",
+    "dev:web": "npm run dev --workspace @auvyren/web",
+    "dev:api": "node scripts/api.mjs -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000",
+    "build:web": "npm run build --workspace @auvyren/web",
+    "lint:web": "npm run lint --workspace @auvyren/web",
+    "typecheck:web": "npm run typecheck --workspace @auvyren/web",
+    "lint:api": "node scripts/api.mjs -m ruff check app tests",
+    "format:api": "node scripts/api.mjs -m ruff format app tests",
+    "test:api": "node scripts/api.mjs -m pytest",
+    "check": "npm run lint:web && npm run typecheck:web && npm run lint:api && npm run test:api",
+    "migrate": "node scripts/api.mjs -m alembic upgrade head",
+    "db:up": "docker compose up -d db",
+    "db:down": "docker compose down",
+    "db:logs": "docker compose logs -f db"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
