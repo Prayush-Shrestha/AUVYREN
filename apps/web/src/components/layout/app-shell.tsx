@@ -47,6 +47,7 @@ const primaryNav: NavItem[] = [
   { label: "Projects", icon: FolderKanban, phase: "Phase 3" },
   { label: "Habits", icon: Repeat2, phase: "Phase 3" },
   { label: "Calendar", icon: CalendarDays, phase: "Phase 3" },
+  { label: "Intelligence", icon: Sparkles },
   { label: "Notes", icon: NotebookPen, phase: "Phase 5" },
   { label: "Intelligence", icon: Sparkles, phase: "Phase 4" },
 ];

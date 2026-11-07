@@ -1,6 +1,7 @@
 """Import every model so Alembic and SQLAlchemy see the complete metadata."""
 
 from app.db.base import Base
+from app.db.models.ai import AIInsight, AIProviderConfig, AIUsageLog
 from app.db.models.auth import PasswordResetToken, UserSession
 from app.db.models.calendar import CalendarEvent
 from app.db.models.enums import (
@@ -20,6 +21,9 @@ from app.db.models.task import Task
 from app.db.models.user import User, UserSettings
 
 __all__ = [
+    "AIInsight",
+    "AIProviderConfig",
+    "AIUsageLog",
     "Base",
     "CalendarEvent",
     "Goal",

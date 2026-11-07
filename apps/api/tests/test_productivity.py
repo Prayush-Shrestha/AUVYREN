@@ -1,11 +1,18 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from app.db.models import User
 from app.db.session import SessionFactory
+from app.intelligence.deterministic import (
+    daily_plan,
+    detect_patterns,
+    goal_progress,
+    habit_consistency,
+    prioritize_tasks,
+)
 from app.main import app
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import update
@@ -783,3 +790,152 @@ async def test_inactive_user_cannot_access_productivity(client: AsyncClient) -> 
         assert response.status_code in (401, 403), (
             f"{method} {path} returned {response.status_code}"
         )
+
+
+# --- Deterministic engine unit tests ---
+
+
+def _make_task(
+    task_id: uuid.UUID,
+    title: str,
+    status: str = "todo",
+    priority: str = "medium",
+    due_at: datetime | None = None,
+    planned_for: date | None = None,
+    estimated_minutes: int | None = None,
+    deleted_at: datetime | None = None,
+) -> object:
+    from app.db.models.task import Task
+
+    return Task(
+        id=task_id,
+        user_id=uuid.uuid4(),
+        title=title,
+        status=status,
+        priority=priority,
+        due_at=due_at,
+        planned_for=planned_for,
+        estimated_minutes=estimated_minutes,
+        deleted_at=deleted_at,
+    )
+
+
+async def test_task_prioritization_overdue_first() -> None:
+    now = datetime(2026, 11, 7, 12, 0, tzinfo=UTC)
+    tasks = [
+        _make_task(uuid.uuid4(), "Overdue task", due_at=datetime(2026, 11, 1, tzinfo=UTC)),
+        _make_task(uuid.uuid4(), "Due today", due_at=datetime(2026, 11, 7, tzinfo=UTC)),
+        _make_task(uuid.uuid4(), "Due next week", due_at=datetime(2026, 11, 14, tzinfo=UTC)),
+        _make_task(uuid.uuid4(), "No due date"),
+    ]
+    result = await asyncio_to_thread(prioritize_tasks, tasks, now=now)
+    assert result.prioritized[0].title == "Overdue task"
+    assert result.prioritized[0].score > result.prioritized[1].score
+    assert "Overdue" in result.prioritized[0].reasons
+
+
+async def test_task_prioritization_empty() -> None:
+    result = await asyncio_to_thread(prioritize_tasks, [], now=datetime(2026, 11, 7, tzinfo=UTC))
+    assert result.prioritized == []
+
+
+def test_daily_plan_overload() -> None:
+    now = datetime(2026, 11, 7, 12, 0, tzinfo=UTC)
+    tasks = [
+        _make_task(
+            uuid.uuid4(),
+            "Big task",
+            due_at=datetime(2026, 11, 7, 9, tzinfo=UTC),
+            estimated_minutes=500,
+        ),
+        _make_task(
+            uuid.uuid4(),
+            "Small task",
+            due_at=datetime(2026, 11, 7, 10, tzinfo=UTC),
+            estimated_minutes=30,
+        ),
+    ]
+    plan = daily_plan(tasks, now=now)
+    assert plan.overload is True
+    assert plan.estimated_remaining_minutes == 530
+
+
+def test_goal_progress_with_milestones() -> None:
+    from app.db.models.goal import Goal
+    from app.db.models.milestone import Milestone
+
+    now = datetime(2026, 11, 7, tzinfo=UTC)
+    goal = Goal(
+        id=uuid.uuid4(),
+        user_id=uuid.uuid4(),
+        title="Test goal",
+        status="active",
+        target_date=date(2026, 12, 1),
+    )
+    milestones = [
+        Milestone(id=uuid.uuid4(), goal_id=goal.id, title="M1", status="completed"),
+        Milestone(id=uuid.uuid4(), goal_id=goal.id, title="M2", status="pending"),
+    ]
+    results = goal_progress([goal], milestones, [], now=now)
+    assert results[0].progress == 50
+    assert results[0].milestone_count == 2
+    assert results[0].completed_milestone_count == 1
+
+
+def test_habit_consistency_daily_streak() -> None:
+    from app.db.models.habit import Habit, HabitLog
+
+    now = datetime(2026, 11, 7, tzinfo=UTC)
+    today = date(2026, 11, 7)
+    habit = Habit(
+        id=uuid.uuid4(),
+        user_id=uuid.uuid4(),
+        name="Daily habit",
+        schedule="daily",
+    )
+    logs = [
+        HabitLog(
+            id=uuid.uuid4(),
+            habit_id=habit.id,
+            user_id=habit.user_id,
+            log_date=today,
+        ),
+        HabitLog(
+            id=uuid.uuid4(),
+            habit_id=habit.id,
+            user_id=habit.user_id,
+            log_date=today - timedelta(days=1),
+        ),
+        HabitLog(
+            id=uuid.uuid4(),
+            habit_id=habit.id,
+            user_id=habit.user_id,
+            log_date=today - timedelta(days=2),
+        ),
+    ]
+    results = habit_consistency([habit], logs, now=now)
+    assert results[0].streak == 3
+    assert results[0].completions_7d == 3
+
+
+def test_detect_patterns_overdue_tasks() -> None:
+    now = datetime(2026, 11, 7, tzinfo=UTC)
+    tasks = [
+        _make_task(uuid.uuid4(), "Overdue 1", due_at=datetime(2026, 11, 1, tzinfo=UTC)),
+        _make_task(uuid.uuid4(), "Overdue 2", due_at=datetime(2026, 11, 2, tzinfo=UTC)),
+        _make_task(uuid.uuid4(), "Overdue 3", due_at=datetime(2026, 11, 3, tzinfo=UTC)),
+        _make_task(uuid.uuid4(), "Overdue 4", due_at=datetime(2026, 11, 4, tzinfo=UTC)),
+        _make_task(uuid.uuid4(), "Overdue 5", due_at=datetime(2026, 11, 5, tzinfo=UTC)),
+    ]
+    patterns = detect_patterns([], [], tasks, [], now=now)
+    deferral = [p for p in patterns if p.kind == "chronic_deferral"]
+    assert len(deferral) == 1
+    assert deferral[0].confidence == "high"
+
+
+async def asyncio_to_thread(func, *args, **kwargs):
+    import asyncio
+
+    return await asyncio.to_thread(func, *args, **kwargs)
+
+

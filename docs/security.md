@@ -180,7 +180,7 @@ multi-tenant analytics make it necessary.
 | Opaque sessions, secure cookies, CSRF | ✅ | 2 |
 | Password reset email flow | ✅ | 2 |
 | Login rate limiting and security events | ✅ | 2 |
-| AI consent and encrypted provider keys | — | 4/6 |
+| AI consent and encrypted provider keys | — | 4 |
 | Export, deletion, audit trail | — | 6 |
 | CSP, dependency audit in CI, penetration tests | — | 7 |
 
