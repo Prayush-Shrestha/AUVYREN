@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime
-from typing import Sequence
+from datetime import datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
-from app.api.errors import AppError
 from app.db.models.goal import Goal
 from app.db.models.milestone import Milestone
 from app.schemas.goal import GoalCreate, GoalUpdate, MilestoneCreate, MilestoneUpdate
@@ -25,7 +24,7 @@ async def get_goal_by_id(
     result = await db.execute(
         select(Goal)
         .where(Goal.id == goal_id, Goal.user_id == user_id)
-        .options(__import__("sqlalchemy.orm", fromlist=["selectinload"]).selectinload(Goal.milestones))
+        .options(selectinload(Goal.milestones))
     )
     return result.scalar_one_or_none()
 
@@ -117,11 +116,11 @@ async def list_goals(
 
     query = query.order_by(Goal.created_at.desc()).limit(limit).offset(offset)
 
-    result = await db.execute(query.options(__import__("sqlalchemy.orm", fromlist=["selectinload"]).selectinload(Goal.milestones)))
+    result = await db.execute(query.options(selectinload(Goal.milestones)))
     return list(result.scalars().all())
 
 
-async def compute_goal_progress(goal: Goal) -> tuple[int, int, int]:
+def compute_goal_progress(goal: Goal) -> tuple[int, int, int]:
     """Return (progress, milestone_count, completed_milestone_count)."""
     milestones = list(goal.milestones or [])
     milestone_count = len(milestones)
@@ -138,7 +137,6 @@ async def compute_goal_progress(goal: Goal) -> tuple[int, int, int]:
 
 
 def serialize_goal_response(goal: Goal) -> dict:
-    progress, milestone_count, completed_count = compute_goal_progress(goal)
     return {
         "id": goal.id,
         "user_id": goal.user_id,
@@ -152,9 +150,6 @@ def serialize_goal_response(goal: Goal) -> dict:
         "deleted_at": goal.deleted_at,
         "created_at": goal.created_at,
         "updated_at": goal.updated_at,
-        "progress": progress,
-        "milestone_count": milestone_count,
-        "completed_milestone_count": completed_count,
     }
 
 

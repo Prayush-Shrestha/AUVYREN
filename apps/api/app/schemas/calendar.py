@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
-from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -23,7 +22,7 @@ class CalendarEventCreate(_StrictModel):
     location: str | None = Field(default=None, max_length=240)
 
     @model_validator(mode="after")
-    def _validate_time_range(self) -> "CalendarEventCreate":
+    def _validate_time_range(self) -> CalendarEventCreate:
         if self.ends_at <= self.starts_at:
             raise ValueError("Ends at must be after starts at.")
         return self
@@ -39,7 +38,7 @@ class CalendarEventUpdate(_StrictModel):
     location: str | None = Field(default=None, max_length=240)
 
     @model_validator(mode="after")
-    def _validate_time_range(self) -> "CalendarEventUpdate":
+    def _validate_time_range(self) -> CalendarEventUpdate:
         if self.starts_at is not None and self.ends_at is not None:
             if self.ends_at <= self.starts_at:
                 raise ValueError("Ends at must be after starts at.")

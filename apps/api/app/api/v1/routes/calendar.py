@@ -8,7 +8,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, Query, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import get_current_auth
+from app.api.dependencies import get_current_auth, require_csrf
 from app.api.errors import AppError
 from app.db.session import get_db_session
 from app.schemas.calendar import (
@@ -44,6 +44,8 @@ async def create_event_endpoint(
     db: AsyncSession = Depends(get_db_session),
 ) -> CalendarEventResponse:
     event = await create_event(db, user_id=auth.user.id, payload=payload)
+    await db.commit()
+    await db.refresh(event)
     return CalendarEventResponse.model_validate(event)
 
 
@@ -120,6 +122,8 @@ async def update_event_endpoint(
             title="Event not found",
             detail="That event does not exist or has already been deleted.",
         )
+    await db.commit()
+    await db.refresh(event)
     return CalendarEventResponse.model_validate(event)
 
 
@@ -142,6 +146,7 @@ async def delete_event_endpoint(
             title="Event not found",
             detail="That event does not exist or has already been deleted.",
         )
+    await db.commit()
     response.status_code = status.HTTP_204_NO_CONTENT
 
 
@@ -164,4 +169,6 @@ async def restore_event_endpoint(
             title="Event not found",
             detail="That event does not exist or has already been deleted.",
         )
+    await db.commit()
+    await db.refresh(event)
     return CalendarEventResponse.model_validate(event)

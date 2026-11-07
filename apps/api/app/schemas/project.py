@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime
-from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from app.db.models.enums import ProjectStatus
 
@@ -23,7 +22,7 @@ class ProjectCreate(_StrictModel):
     due_date: date | None = None
 
     @model_validator(mode="after")
-    def _validate_dates(self) -> "ProjectCreate":
+    def _validate_dates(self) -> ProjectCreate:
         if self.start_date is not None and self.due_date is not None:
             if self.due_date < self.start_date:
                 raise ValueError("Due date must be on or after start date.")
@@ -38,7 +37,7 @@ class ProjectUpdate(_StrictModel):
     due_date: date | None = None
 
     @model_validator(mode="after")
-    def _validate_dates(self) -> "ProjectUpdate":
+    def _validate_dates(self) -> ProjectUpdate:
         if self.start_date is not None and self.due_date is not None:
             if self.due_date < self.start_date:
                 raise ValueError("Due date must be on or after start date.")

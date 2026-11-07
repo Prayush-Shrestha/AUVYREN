@@ -3,14 +3,14 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date
 
 from fastapi import APIRouter, Depends, Query, Request, Response, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import get_current_auth
+from app.api.dependencies import get_current_auth, require_csrf
 from app.api.errors import AppError
-from app.db.models import Goal
+from app.db.models import Goal, Milestone
 from app.db.session import get_db_session
 from app.schemas.goal import (
     GoalCreate,
@@ -30,7 +30,6 @@ from app.services.goal import (
     delete_goal,
     delete_milestone,
     get_goal_by_id,
-    get_milestone_by_id,
     list_goals,
     list_milestones,
     restore_goal,
@@ -56,6 +55,8 @@ async def create_goal_endpoint(
     db: AsyncSession = Depends(get_db_session),
 ) -> GoalResponse:
     goal = await create_goal(db, user_id=auth.user.id, payload=payload)
+    await db.commit()
+    await db.refresh(goal, attribute_names=["milestones"])
     progress, milestone_count, completed_count = compute_goal_progress(goal)
     return GoalResponse(
         **serialize_goal_response(goal),
@@ -149,6 +150,8 @@ async def update_goal_endpoint(
             title="Goal not found",
             detail="That goal does not exist or has already been deleted.",
         )
+    await db.commit()
+    await db.refresh(goal, attribute_names=["milestones"])
     progress, milestone_count, completed_count = compute_goal_progress(goal)
     return GoalResponse(
         **serialize_goal_response(goal),
@@ -177,6 +180,7 @@ async def delete_goal_endpoint(
             title="Goal not found",
             detail="That goal does not exist or has already been deleted.",
         )
+    await db.commit()
     response.status_code = status.HTTP_204_NO_CONTENT
 
 
@@ -199,6 +203,8 @@ async def restore_goal_endpoint(
             title="Goal not found",
             detail="That goal does not exist or has already been deleted.",
         )
+    await db.commit()
+    await db.refresh(goal, attribute_names=["milestones"])
     progress, milestone_count, completed_count = compute_goal_progress(goal)
     return GoalResponse(
         **serialize_goal_response(goal),
@@ -233,6 +239,8 @@ async def create_milestone_endpoint(
             detail="That goal does not exist or has already been deleted.",
         )
     milestone = await create_milestone(db, goal_id=goal_id, payload=payload)
+    await db.commit()
+    await db.refresh(milestone)
     return MilestoneResponse.model_validate(milestone)
 
 
@@ -273,36 +281,36 @@ async def update_milestone_endpoint(
     auth: CurrentAuth = Depends(get_current_auth),
     db: AsyncSession = Depends(get_db_session),
 ) -> MilestoneResponse:
-    # Verify goal ownership first
     result = await db.execute(
-        __import__("sqlalchemy", fromlist=["select"]).select(
-            __import__("app.db.models.goal", fromlist=["Goal"]).Goal
-        ).where(
-            __import__("app.db.models.goal", fromlist=["Goal"]).Goal.id == __import__("app.db.models.milestone", fromlist=["Milestone"]).Milestone.goal_id,
-            __import__("app.db.models.milestone", fromlist=["Milestone"]).Milestone.id == milestone_id,
-            __import__("app.db.models.goal", fromlist=["Goal"]).Goal.user_id == auth.user.id,
+        select(Milestone)
+        .join(Goal, Milestone.goal_id == Goal.id)
+        .where(
+            Milestone.id == milestone_id,
+            Goal.user_id == auth.user.id,
         )
     )
-    goal = result.scalar_one_or_none()
-    if goal is None:
+    milestone = result.scalar_one_or_none()
+    if milestone is None:
         raise AppError(
             404,
-            "goal_not_found",
-            title="Goal not found",
-            detail="That goal does not exist or has already been deleted.",
+            "milestone_not_found",
+            title="Milestone not found",
+            detail="That milestone does not exist or its goal is not accessible.",
         )
 
-    milestone = await update_milestone(
-        db, goal_id=goal_id if False else goal.id, milestone_id=milestone_id, payload=payload
+    updated = await update_milestone(
+        db, goal_id=milestone.goal_id, milestone_id=milestone_id, payload=payload
     )
-    if milestone is None:
+    if updated is None:
         raise AppError(
             404,
             "milestone_not_found",
             title="Milestone not found",
             detail="That milestone does not exist.",
         )
-    return MilestoneResponse.model_validate(milestone)
+    await db.commit()
+    await db.refresh(updated)
+    return MilestoneResponse.model_validate(updated)
 
 
 @router.delete(
@@ -316,26 +324,24 @@ async def delete_milestone_endpoint(
     auth: CurrentAuth = Depends(get_current_auth),
     db: AsyncSession = Depends(get_db_session),
 ) -> None:
-    # Verify goal ownership first
     result = await db.execute(
-        __import__("sqlalchemy", fromlist=["select"]).select(
-            __import__("app.db.models.goal", fromlist=["Goal"]).Goal
-        ).where(
-            __import__("app.db.models.goal", fromlist=["Goal"]).Goal.id == __import__("app.db.models.milestone", fromlist=["Milestone"]).Milestone.goal_id,
-            __import__("app.db.models.milestone", fromlist=["Milestone"]).Milestone.id == milestone_id,
-            __import__("app.db.models.goal", fromlist=["Goal"]).Goal.user_id == auth.user.id,
+        select(Milestone)
+        .join(Goal, Milestone.goal_id == Goal.id)
+        .where(
+            Milestone.id == milestone_id,
+            Goal.user_id == auth.user.id,
         )
     )
-    goal = result.scalar_one_or_none()
-    if goal is None:
+    milestone = result.scalar_one_or_none()
+    if milestone is None:
         raise AppError(
             404,
-            "goal_not_found",
-            title="Goal not found",
-            detail="That goal does not exist or has already been deleted.",
+            "milestone_not_found",
+            title="Milestone not found",
+            detail="That milestone does not exist or its goal is not accessible.",
         )
 
-    deleted = await delete_milestone(db, goal_id=goal.id, milestone_id=milestone_id)
+    deleted = await delete_milestone(db, goal_id=milestone.goal_id, milestone_id=milestone_id)
     if deleted is None:
         raise AppError(
             404,
@@ -343,4 +349,5 @@ async def delete_milestone_endpoint(
             title="Milestone not found",
             detail="That milestone does not exist.",
         )
+    await db.commit()
     response.status_code = status.HTTP_204_NO_CONTENT

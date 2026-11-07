@@ -5,14 +5,11 @@ from __future__ import annotations
 import uuid
 from datetime import date, datetime
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request, Response, status
+from fastapi import APIRouter, Depends, Query, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import get_current_auth, get_current_user, require_csrf
+from app.api.dependencies import get_current_auth, require_csrf
 from app.api.errors import AppError
-from app.core.config import get_settings
-from app.core.cookies import clear_csrf_cookie, clear_session_cookie
-from app.db.models import Task
 from app.db.session import get_db_session
 from app.schemas.task import (
     TaskCreate,
@@ -26,8 +23,8 @@ from app.services.task import (
     count_tasks,
     create_task,
     delete_task,
-    get_today_tasks,
     get_task_by_id,
+    get_today_tasks,
     get_upcoming_tasks,
     list_tasks,
     restore_task,
@@ -52,6 +49,8 @@ async def create_task_endpoint(
     db: AsyncSession = Depends(get_db_session),
 ) -> TaskResponse:
     task = await create_task(db, user_id=auth.user.id, payload=payload)
+    await db.commit()
+    await db.refresh(task)
     return TaskResponse.model_validate(task)
 
 
@@ -188,6 +187,8 @@ async def update_task_endpoint(
             title="Task not found",
             detail="That task does not exist or has already been deleted.",
         )
+    await db.commit()
+    await db.refresh(task)
     return TaskResponse.model_validate(task)
 
 
@@ -216,6 +217,8 @@ async def update_task_status_endpoint(
             title="Task not found",
             detail="That task does not exist or has already been deleted.",
         )
+    await db.commit()
+    await db.refresh(task)
     return TaskResponse.model_validate(task)
 
 
@@ -238,6 +241,7 @@ async def delete_task_endpoint(
             title="Task not found",
             detail="That task does not exist or has already been deleted.",
         )
+    await db.commit()
     response.status_code = status.HTTP_204_NO_CONTENT
 
 
@@ -260,4 +264,6 @@ async def restore_task_endpoint(
             title="Task not found",
             detail="That task does not exist or has already been deleted.",
         )
+    await db.commit()
+    await db.refresh(task)
     return TaskResponse.model_validate(task)

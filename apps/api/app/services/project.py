@@ -3,13 +3,11 @@
 from __future__ import annotations
 
 import uuid
-from datetime import date, datetime
-from typing import Sequence
+from datetime import datetime
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.errors import AppError
 from app.db.models.project import Project
 from app.db.models.task import Task
 from app.schemas.project import ProjectCreate, ProjectUpdate
@@ -117,21 +115,26 @@ async def compute_project_progress(
     db: AsyncSession, *, user_id: uuid.UUID, project_id: uuid.UUID
 ) -> tuple[int, int]:
     """Return (task_count, completed_task_count)."""
+    project_id = uuid.UUID(project_id) if isinstance(project_id, str) else project_id
     result = await db.execute(
-        select(
-            func.count(Task.id),
-            func.count(Task.id).filter(Task.status == "done"),
-        ).where(
+        select(Task.id, Task.status).where(
             Task.user_id == user_id,
             Task.project_id == project_id,
             Task.deleted_at.is_(None),
         )
     )
-    row = result.one()
-    return row[0], row[1]
+    task_count = 0
+    completed_count = 0
+    for row in result.all():
+        task_count += 1
+        if str(row[1]) == "done":
+            completed_count += 1
+    return task_count, completed_count
 
 
-def serialize_project_response(project: Project, task_count: int, completed_task_count: int) -> dict:
+def serialize_project_response(
+    project: Project, task_count: int, completed_task_count: int
+) -> dict:
     return {
         "id": project.id,
         "user_id": project.user_id,

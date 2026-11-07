@@ -7,9 +7,8 @@ import uuid
 from fastapi import APIRouter, Depends, Query, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import get_current_auth
+from app.api.dependencies import get_current_auth, require_csrf
 from app.api.errors import AppError
-from app.db.models import Project
 from app.db.session import get_db_session
 from app.schemas.project import (
     ProjectCreate,
@@ -46,6 +45,8 @@ async def create_project_endpoint(
     db: AsyncSession = Depends(get_db_session),
 ) -> ProjectResponse:
     project = await create_project(db, user_id=auth.user.id, payload=payload)
+    await db.commit()
+    await db.refresh(project)
     task_count, completed_count = await compute_project_progress(
         db, user_id=auth.user.id, project_id=project.id
     )
@@ -136,6 +137,8 @@ async def update_project_endpoint(
             title="Project not found",
             detail="That project does not exist or has already been deleted.",
         )
+    await db.commit()
+    await db.refresh(project)
     task_count, completed_count = await compute_project_progress(
         db, user_id=auth.user.id, project_id=project_id
     )
@@ -163,6 +166,7 @@ async def delete_project_endpoint(
             title="Project not found",
             detail="That project does not exist or has already been deleted.",
         )
+    await db.commit()
     response.status_code = status.HTTP_204_NO_CONTENT
 
 
@@ -185,6 +189,8 @@ async def restore_project_endpoint(
             title="Project not found",
             detail="That project does not exist or has already been deleted.",
         )
+    await db.commit()
+    await db.refresh(project)
     task_count, completed_count = await compute_project_progress(
         db, user_id=auth.user.id, project_id=project_id
     )

@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, Query, Request, Response, status
+from sqlalchemy import inspect, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import get_current_auth
+from app.api.dependencies import get_current_auth, require_csrf
 from app.api.errors import AppError
+from app.db.models.routine import Routine, RoutineStep
 from app.db.session import get_db_session
 from app.schemas.routine import (
     RoutineCreate,
@@ -26,13 +29,28 @@ from app.services.routine import (
     delete_routine,
     delete_routine_step,
     get_routine_by_id,
-    get_routine_step_by_id,
     list_routines,
     update_routine,
     update_routine_step,
 )
 
 router = APIRouter(prefix="/routines", tags=["Routines"], dependencies=[Depends(require_csrf)])
+
+
+def _routine_response(routine: Routine) -> RoutineResponse:
+    insp = inspect(routine)
+    return RoutineResponse(
+        id=insp.attrs["id"].value,
+        user_id=insp.attrs["user_id"].value,
+        name=insp.attrs["name"].value,
+        description=insp.attrs["description"].value,
+        time_of_day=insp.attrs["time_of_day"].value,
+        is_active=insp.attrs["is_active"].value,
+        step_count=len(routine.steps or []),
+        created_at=insp.attrs["created_at"].value,
+        updated_at=insp.attrs["updated_at"].value,
+        steps=[RoutineStepResponse.model_validate(s) for s in (routine.steps or [])],
+    )
 
 
 @router.post(
@@ -49,6 +67,22 @@ async def create_routine_endpoint(
     db: AsyncSession = Depends(get_db_session),
 ) -> RoutineResponse:
     routine = await create_routine(db, user_id=auth.user.id, payload=payload)
+    await db.commit()
+    # Build step responses from payload (ORM relationship access after flush
+    # requires async IO which is not available in sync response building)
+    step_responses = [
+        RoutineStepResponse(
+            id=uuid.uuid4(),
+            routine_id=routine.id,
+            title=step.title,
+            description=step.description,
+            duration_minutes=step.duration_minutes,
+            sort_order=step.sort_order,
+            created_at=datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
+        for step in payload.steps
+    ]
     return RoutineResponse(
         id=routine.id,
         user_id=routine.user_id,
@@ -56,14 +90,11 @@ async def create_routine_endpoint(
         description=routine.description,
         time_of_day=routine.time_of_day,
         is_active=routine.is_active,
-        step_count=len(routine.steps or []),
-        created_at=routine.created_at,
-        updated_at=routine.updated_at,
-        steps=[
-            RoutineStepResponse.model_validate(s) for s in (routine.steps or [])
-        ],
+        step_count=len(payload.steps),
+        created_at=datetime.now(UTC),
+        updated_at=datetime.now(UTC),
+        steps=step_responses,
     )
-
 
 @router.get(
     "",
@@ -80,21 +111,7 @@ async def list_routines_endpoint(
         db, user_id=auth.user.id, include_inactive=include_inactive
     )
     return RoutineListResponse(
-        routines=[
-            RoutineResponse(
-                id=r.id,
-                user_id=r.user_id,
-                name=r.name,
-                description=r.description,
-                time_of_day=r.time_of_day,
-                is_active=r.is_active,
-                step_count=len(r.steps or []),
-                created_at=r.created_at,
-                updated_at=r.updated_at,
-                steps=[RoutineStepResponse.model_validate(s) for s in (r.steps or [])],
-            )
-            for r in routines
-        ]
+        routines=[_routine_response(r) for r in routines]
     )
 
 
@@ -117,18 +134,7 @@ async def get_routine_endpoint(
             title="Routine not found",
             detail="That routine does not exist.",
         )
-    return RoutineResponse(
-        id=routine.id,
-        user_id=routine.user_id,
-        name=routine.name,
-        description=routine.description,
-        time_of_day=routine.time_of_day,
-        is_active=routine.is_active,
-        step_count=len(routine.steps or []),
-        created_at=routine.created_at,
-        updated_at=routine.updated_at,
-        steps=[RoutineStepResponse.model_validate(s) for s in (routine.steps or [])],
-    )
+    return _routine_response(routine)
 
 
 @router.patch(
@@ -153,18 +159,9 @@ async def update_routine_endpoint(
             title="Routine not found",
             detail="That routine does not exist.",
         )
-    return RoutineResponse(
-        id=routine.id,
-        user_id=routine.user_id,
-        name=routine.name,
-        description=routine.description,
-        time_of_day=routine.time_of_day,
-        is_active=routine.is_active,
-        step_count=len(routine.steps or []),
-        created_at=routine.created_at,
-        updated_at=routine.updated_at,
-        steps=[RoutineStepResponse.model_validate(s) for s in (routine.steps or [])],
-    )
+    response_data = _routine_response(routine)
+    await db.commit()
+    return response_data
 
 
 @router.delete(
@@ -186,6 +183,7 @@ async def delete_routine_endpoint(
             title="Routine not found",
             detail="That routine does not exist.",
         )
+    await db.commit()
     response.status_code = status.HTTP_204_NO_CONTENT
 
 
@@ -214,6 +212,8 @@ async def create_routine_step_endpoint(
             detail="That routine does not exist.",
         )
     step = await create_routine_step(db, routine_id=routine_id, payload=payload)
+    await db.commit()
+    await db.refresh(step)
     return RoutineStepResponse.model_validate(step)
 
 
@@ -229,14 +229,12 @@ async def update_routine_step_endpoint(
     auth: CurrentAuth = Depends(get_current_auth),
     db: AsyncSession = Depends(get_db_session),
 ) -> RoutineStepResponse:
-    # Verify routine ownership
     result = await db.execute(
-        __import__("sqlalchemy", fromlist=["select"]).select(
-            __import__("app.db.models.routine", fromlist=["Routine"]).Routine
-        ).where(
-            __import__("app.db.models.routine", fromlist=["Routine"]).Routine.id == __import__("app.db.models.routine", fromlist=["RoutineStep"]).RoutineStep.routine_id,
-            __import__("app.db.models.routine", fromlist=["RoutineStep"]).RoutineStep.id == step_id,
-            __import__("app.db.models.routine", fromlist=["Routine"]).Routine.user_id == auth.user.id,
+        select(Routine)
+        .join(RoutineStep, RoutineStep.routine_id == Routine.id)
+        .where(
+            RoutineStep.id == step_id,
+            Routine.user_id == auth.user.id,
         )
     )
     routine = result.scalar_one_or_none()
@@ -258,6 +256,8 @@ async def update_routine_step_endpoint(
             title="Step not found",
             detail="That step does not exist.",
         )
+    await db.commit()
+    await db.refresh(step)
     return RoutineStepResponse.model_validate(step)
 
 
@@ -272,14 +272,12 @@ async def delete_routine_step_endpoint(
     auth: CurrentAuth = Depends(get_current_auth),
     db: AsyncSession = Depends(get_db_session),
 ) -> None:
-    # Verify routine ownership
     result = await db.execute(
-        __import__("sqlalchemy", fromlist=["select"]).select(
-            __import__("app.db.models.routine", fromlist=["Routine"]).Routine
-        ).where(
-            __import__("app.db.models.routine", fromlist=["Routine"]).Routine.id == __import__("app.db.models.routine", fromlist=["RoutineStep"]).RoutineStep.routine_id,
-            __import__("app.db.models.routine", fromlist=["RoutineStep"]).RoutineStep.id == step_id,
-            __import__("app.db.models.routine", fromlist=["Routine"]).Routine.user_id == auth.user.id,
+        select(Routine)
+        .join(RoutineStep, RoutineStep.routine_id == Routine.id)
+        .where(
+            RoutineStep.id == step_id,
+            Routine.user_id == auth.user.id,
         )
     )
     routine = result.scalar_one_or_none()
@@ -299,4 +297,5 @@ async def delete_routine_step_endpoint(
             title="Step not found",
             detail="That step does not exist.",
         )
+    await db.commit()
     response.status_code = status.HTTP_204_NO_CONTENT

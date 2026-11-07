@@ -4,9 +4,8 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime
-from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.db.models.enums import GoalStatus, MilestoneStatus
 

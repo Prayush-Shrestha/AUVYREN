@@ -6,10 +6,12 @@ import uuid
 from datetime import date
 
 from fastapi import APIRouter, Depends, Query, Request, Response, status
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.dependencies import get_current_auth
+from app.api.dependencies import get_current_auth, require_csrf
 from app.api.errors import AppError
+from app.db.models.habit import Habit
 from app.db.session import get_db_session
 from app.schemas.habit import (
     HabitCreate,
@@ -37,6 +39,23 @@ from app.services.habit import (
 router = APIRouter(prefix="/habits", tags=["Habits"], dependencies=[Depends(require_csrf)])
 
 
+def _habit_response(habit: Habit, streak: int, completions: int) -> HabitResponse:
+    return HabitResponse(
+        id=habit.id,
+        user_id=habit.user_id,
+        name=habit.name,
+        description=habit.description,
+        schedule=habit.schedule,
+        target_per_week=habit.target_per_week,
+        start_date=habit.start_date,
+        is_archived=habit.is_archived,
+        streak=streak,
+        completions_last_30_days=completions,
+        created_at=habit.created_at,
+        updated_at=habit.updated_at,
+    )
+
+
 @router.post(
     "",
     response_model=HabitResponse,
@@ -51,13 +70,11 @@ async def create_habit_endpoint(
     db: AsyncSession = Depends(get_db_session),
 ) -> HabitResponse:
     habit = await create_habit(db, user_id=auth.user.id, payload=payload)
+    await db.commit()
+    await db.refresh(habit)
     streak = await compute_streak(db, habit=habit)
     completions = await compute_completions_last_30_days(db, habit_id=habit.id)
-    return HabitResponse(
-        **habit.__dict__,
-        streak=streak,
-        completions_last_30_days=completions,
-    )
+    return _habit_response(habit, streak, completions)
 
 
 @router.get(
@@ -76,13 +93,7 @@ async def list_habits_endpoint(
     for habit in habits:
         streak = await compute_streak(db, habit=habit)
         completions = await compute_completions_last_30_days(db, habit_id=habit.id)
-        items.append(
-            HabitResponse(
-                **habit.__dict__,
-                streak=streak,
-                completions_last_30_days=completions,
-            )
-        )
+        items.append(_habit_response(habit, streak, completions))
     return HabitListResponse(habits=items)
 
 
@@ -98,11 +109,8 @@ async def get_habit_endpoint(
     db: AsyncSession = Depends(get_db_session),
 ) -> HabitResponse:
     result = await db.execute(
-        __import__("sqlalchemy", fromlist=["select"]).select(
-            __import__("app.db.models.habit", fromlist=["Habit"]).Habit
-        ).where(
-            __import__("app.db.models.habit", fromlist=["Habit"]).Habit.id == habit_id,
-            __import__("app.db.models.habit", fromlist=["Habit"]).Habit.user_id == auth.user.id,
+        select(Habit).where(
+            Habit.id == habit_id, Habit.user_id == auth.user.id
         )
     )
     habit = result.scalar_one_or_none()
@@ -115,11 +123,7 @@ async def get_habit_endpoint(
         )
     streak = await compute_streak(db, habit=habit)
     completions = await compute_completions_last_30_days(db, habit_id=habit.id)
-    return HabitResponse(
-        **habit.__dict__,
-        streak=streak,
-        completions_last_30_days=completions,
-    )
+    return _habit_response(habit, streak, completions)
 
 
 @router.patch(
@@ -142,13 +146,11 @@ async def update_habit_endpoint(
             title="Habit not found",
             detail="That habit does not exist.",
         )
+    await db.commit()
+    await db.refresh(habit)
     streak = await compute_streak(db, habit=habit)
     completions = await compute_completions_last_30_days(db, habit_id=habit.id)
-    return HabitResponse(
-        **habit.__dict__,
-        streak=streak,
-        completions_last_30_days=completions,
-    )
+    return _habit_response(habit, streak, completions)
 
 
 @router.post(
@@ -170,6 +172,7 @@ async def archive_habit_endpoint(
             title="Habit not found",
             detail="That habit does not exist.",
         )
+    await db.commit()
     response.status_code = status.HTTP_204_NO_CONTENT
 
 
@@ -192,6 +195,7 @@ async def unarchive_habit_endpoint(
             title="Habit not found",
             detail="That habit does not exist.",
         )
+    await db.commit()
     response.status_code = status.HTTP_204_NO_CONTENT
 
 
@@ -221,6 +225,8 @@ async def create_habit_log_endpoint(
             title="Habit not found",
             detail="That habit does not exist.",
         )
+    await db.commit()
+    await db.refresh(log)
     return HabitLogResponse.model_validate(log)
 
 
@@ -244,7 +250,7 @@ async def list_habit_logs_endpoint(
         start_date=start_date,
         end_date=end_date,
     )
-    return HabitLogListResponse(logs=[HabitLogResponse.model_validate(l) for l in logs])
+    return HabitLogListResponse(logs=[HabitLogResponse.model_validate(item) for item in logs])
 
 
 @router.delete(
@@ -269,4 +275,5 @@ async def delete_habit_log_endpoint(
             title="Habit log not found",
             detail="No completion logged for this date.",
         )
+    await db.commit()
     response.status_code = status.HTTP_204_NO_CONTENT

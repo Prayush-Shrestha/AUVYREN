@@ -4,15 +4,12 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime, time, timedelta
-from zoneinfo import ZoneInfo
 
-from sqlalchemy import and_, func, or_, select
+from sqlalchemy import and_, func, or_, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.errors import AppError
-from app.core.config import get_settings
 from app.db.models.task import Task
-from app.schemas.task import TaskCreate, TaskStatusUpdate, TaskUpdate
+from app.schemas.task import TaskCreate, TaskUpdate
 
 
 def utcnow() -> datetime:
@@ -23,7 +20,11 @@ async def get_task_by_id(
     db: AsyncSession, *, user_id: uuid.UUID, task_id: uuid.UUID
 ) -> Task | None:
     result = await db.execute(
-        select(Task).where(Task.id == task_id, Task.user_id == user_id)
+        select(Task).where(
+            Task.id == task_id,
+            Task.user_id == user_id,
+            Task.deleted_at.is_(None),
+        )
     )
     return result.scalar_one_or_none()
 
@@ -67,7 +68,7 @@ async def update_task(
     for field, value in data.items():
         setattr(task, field, value)
 
-    if data.get("status") is not None:
+    if "status" in data:
         if data["status"] == "done" and task.completed_at is None:
             task.completed_at = utcnow()
         elif data["status"] != "done":
@@ -92,7 +93,10 @@ async def delete_task(
 async def restore_task(
     db: AsyncSession, *, user_id: uuid.UUID, task_id: uuid.UUID
 ) -> Task | None:
-    task = await get_task_by_id(db, user_id=user_id, task_id=task_id)
+    result = await db.execute(
+        select(Task).where(Task.id == task_id, Task.user_id == user_id)
+    )
+    task = result.scalar_one_or_none()
     if task is None:
         return None
     task.deleted_at = None
@@ -119,7 +123,7 @@ async def list_tasks(
         query = query.where(Task.deleted_at.is_(None))
 
     if status is not None:
-        query = query.where(Task.status == status)
+        query = query.where(text("status = :status")).params(status=status)
 
     if project_id is not None:
         query = query.where(Task.project_id == project_id)
@@ -157,7 +161,7 @@ async def count_tasks(
         query = query.where(Task.deleted_at.is_(None))
 
     if status is not None:
-        query = query.where(Task.status == status)
+        query = query.where(text("status = :status")).params(status=status)
 
     if project_id is not None:
         query = query.where(Task.project_id == project_id)
@@ -189,11 +193,7 @@ async def get_upcoming_tasks(
         .where(
             Task.user_id == user_id,
             Task.deleted_at.is_(None),
-            Task.status != "done",
-            or_(
-                Task.due_at.is_not(None),
-                Task.planned_for.is_not(None),
-            ),
+            text("status != 'done'"),
         )
         .where(
             or_(
@@ -230,11 +230,9 @@ async def get_today_tasks(
         .where(
             Task.user_id == user_id,
             Task.deleted_at.is_(None),
-            Task.status != "done",
+            text("status != 'done'"),
             or_(
-                and_(
-                    Task.planned_for == day,
-                ),
+                Task.planned_for == day,
                 and_(
                     Task.due_at >= start,
                     Task.due_at <= end,

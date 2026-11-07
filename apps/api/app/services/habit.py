@@ -8,6 +8,7 @@ from datetime import date, datetime, timedelta
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.api.errors import AppError
 from app.db.models.habit import Habit, HabitLog
 from app.schemas.habit import HabitCreate, HabitLogCreate, HabitUpdate
 

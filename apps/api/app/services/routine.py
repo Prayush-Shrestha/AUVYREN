@@ -7,6 +7,7 @@ from datetime import datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.db.models.routine import Routine, RoutineStep
 from app.schemas.routine import (
@@ -27,7 +28,7 @@ async def get_routine_by_id(
     result = await db.execute(
         select(Routine)
         .where(Routine.id == routine_id, Routine.user_id == user_id)
-        .options(__import__("sqlalchemy.orm", fromlist=["selectinload"]).selectinload(Routine.steps))
+        .options(selectinload(Routine.steps))
     )
     return result.scalar_one_or_none()
 
@@ -59,7 +60,7 @@ async def create_routine(
         db.add(step)
 
     await db.flush()
-    await db.refresh(routine, attribute_names=["steps"])
+    await db.refresh(routine)
     return routine
 
 
@@ -78,8 +79,6 @@ async def update_routine(
     for field, value in data.items():
         setattr(routine, field, value)
 
-    await db.flush()
-    await db.refresh(routine, attribute_names=["steps"])
     return routine
 
 

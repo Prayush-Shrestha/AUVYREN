@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import uuid
 from datetime import date, datetime
-from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -25,6 +24,7 @@ class TaskCreate(_StrictModel):
     planned_for: date | None = None
     estimated_minutes: int | None = Field(default=None, ge=1)
     sort_order: int = Field(default=0, ge=0)
+    status: TaskStatus = TaskStatus.TODO
 
     @field_validator("category")
     @classmethod
