@@ -1,0 +1,258 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+import { useState } from "react";
+import {
+  CalendarDays,
+  FolderKanban,
+  LayoutDashboard,
+  ListTodo,
+  Menu,
+  NotebookPen,
+  Palette,
+  Repeat2,
+  Settings,
+  Sparkles,
+  Target,
+} from "lucide-react";
+
+import { Badge } from "@/components/ui/badge";
+import { ButtonLink } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import { AuvyrenLogo, AuvyrenMark } from "@/components/ui/logo";
+import { cn } from "@/lib/cn";
+
+interface NavItem {
+  label: string;
+  icon: typeof LayoutDashboard;
+  href?: string;
+  phase?: string;
+}
+
+const primaryNav: NavItem[] = [
+  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { label: "Tasks", icon: ListTodo, phase: "Phase 3" },
+  { label: "Goals", icon: Target, phase: "Phase 3" },
+  { label: "Projects", icon: FolderKanban, phase: "Phase 3" },
+  { label: "Habits", icon: Repeat2, phase: "Phase 3" },
+  { label: "Calendar", icon: CalendarDays, phase: "Phase 3" },
+  { label: "Notes", icon: NotebookPen, phase: "Phase 5" },
+  { label: "Intelligence", icon: Sparkles, phase: "Phase 4" },
+];
+
+const secondaryNav: NavItem[] = [
+  { label: "Settings", href: "/settings", icon: Settings },
+  { label: "Design system", href: "/design", icon: Palette },
+];
+
+function isActive(pathname: string, href?: string) {
+  if (!href) return false;
+  return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function NavLink({
+  item,
+  pathname,
+  onNavigate,
+}: {
+  item: NavItem;
+  pathname: string;
+  onNavigate?: () => void;
+}) {
+  const Icon = item.icon;
+
+  if (!item.href) {
+    return (
+      <div
+        aria-disabled="true"
+        className="flex cursor-default items-center gap-3 rounded-xl px-3 py-2.5 text-small text-muted/65"
+      >
+        <Icon className="size-4 shrink-0" aria-hidden="true" />
+        <span className="min-w-0 flex-1">{item.label}</span>
+        <span className="text-[9px] font-semibold uppercase tracking-[0.1em] text-faint">
+          {item.phase}
+        </span>
+      </div>
+    );
+  }
+
+  const active = isActive(pathname, item.href);
+  const content = (
+    <>
+      <Icon
+        className={cn("size-4 shrink-0", active ? "text-accent" : "text-muted")}
+        aria-hidden="true"
+      />
+      <span className="min-w-0 flex-1">{item.label}</span>
+    </>
+  );
+
+  const className = cn(
+    "flex items-center gap-3 rounded-xl border px-3 py-2.5 text-small transition-colors",
+    active
+      ? "border-border bg-surface-elevated text-foreground shadow-soft"
+      : "border-transparent text-muted hover:bg-white/[0.04] hover:text-foreground",
+  );
+
+  if (onNavigate) {
+    return (
+      <DialogClose asChild>
+        <Link href={item.href} onClick={onNavigate} className={className} aria-current={active ? "page" : undefined}>
+          {content}
+        </Link>
+      </DialogClose>
+    );
+  }
+
+  return (
+    <Link
+      href={item.href}
+      className={className}
+      aria-current={active ? "page" : undefined}
+    >
+      {content}
+    </Link>
+  );
+}
+
+function NavGroups({ pathname, onNavigate }: { pathname: string; onNavigate?: () => void }) {
+  return (
+    <>
+      <nav aria-label="Workspace" className="flex-1">
+        <p className="mb-2 px-3 text-[9px] font-semibold uppercase tracking-[0.18em] text-faint">
+          Workspace
+        </p>
+        <div className="space-y-1">
+          {primaryNav.map((item) => (
+            <NavLink
+              key={item.label}
+              item={item}
+              pathname={pathname}
+              onNavigate={onNavigate}
+            />
+          ))}
+        </div>
+        <div className="my-5 h-px bg-border/70" />
+        <p className="mb-2 px-3 text-[9px] font-semibold uppercase tracking-[0.18em] text-faint">
+          System
+        </p>
+        <div className="space-y-1">
+          {secondaryNav.map((item) => (
+            <NavLink
+              key={item.label}
+              item={item}
+              pathname={pathname}
+              onNavigate={onNavigate}
+            />
+          ))}
+        </div>
+      </nav>
+
+      <div className="mt-6 rounded-xl border border-border bg-background/45 p-3.5">
+        <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.13em] text-foreground-soft">
+          <span className="size-1.5 rounded-full bg-accent" aria-hidden="true" />
+          Foundation preview
+        </p>
+        <p className="mt-1.5 text-xs leading-relaxed text-muted">
+          No account is connected. Sessions and profiles arrive in Phase 2.
+        </p>
+        <ButtonLink href="/sign-in" variant="secondary" size="sm" className="mt-3 w-full">
+          Preview sign in
+        </ButtonLink>
+      </div>
+    </>
+  );
+}
+
+export function AppShell({ children }: { children: React.ReactNode }) {
+  const pathname = usePathname();
+  const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const current =
+    [...primaryNav, ...secondaryNav].find((item) => isActive(pathname, item.href))?.label ??
+    "Workspace";
+
+  return (
+    <div className="min-h-dvh bg-background">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-64 flex-col border-r border-border/70 bg-background-secondary/45 backdrop-blur lg:flex">
+        <div className="flex h-18 shrink-0 items-center border-b border-border/60 px-5">
+          <Link href="/" aria-label="Auvyren home">
+            <AuvyrenLogo />
+          </Link>
+        </div>
+        <div className="flex flex-1 flex-col overflow-y-auto p-3">
+          <NavGroups pathname={pathname} />
+        </div>
+      </aside>
+
+      <div className="lg:pl-64">
+        <header className="sticky top-0 z-20 flex h-16 items-center justify-between gap-4 border-b border-border/60 bg-background/80 px-4 backdrop-blur-xl sm:px-6 lg:hidden">
+          <Dialog open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+            <DialogTrigger
+              className="flex size-9 items-center justify-center rounded-full border border-border text-foreground-soft transition-colors hover:bg-white/[0.05]"
+              aria-label="Open workspace navigation"
+            >
+              <Menu className="size-4" aria-hidden="true" />
+            </DialogTrigger>
+            <DialogContent className="max-h-[85dvh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-3">
+                  <AuvyrenMark className="size-6" />
+                  Workspace
+                </DialogTitle>
+                <DialogDescription>Foundation preview navigation.</DialogDescription>
+              </DialogHeader>
+              <div className="flex min-h-[60dvh] flex-col">
+                <NavGroups
+                  pathname={pathname}
+                  onNavigate={() => setMobileNavOpen(false)}
+                />
+              </div>
+            </DialogContent>
+          </Dialog>
+
+          <Link href="/" aria-label="Auvyren home">
+            <AuvyrenLogo markClassName="size-6" wordmarkClassName="hidden sm:inline" />
+          </Link>
+
+          <Badge tone="accent" dot>
+            Preview
+          </Badge>
+        </header>
+
+        <div className="hidden h-18 items-center justify-between border-b border-border/60 px-8 lg:flex">
+          <div>
+            <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-faint">
+              Auvyren / {current}
+            </p>
+          </div>
+          <div className="flex items-center gap-4">
+            <Badge tone="outline">Phase 1 · Shell preview</Badge>
+            <Link
+              href="/"
+              className="text-xs text-muted transition-colors hover:text-foreground"
+            >
+              Back to site
+            </Link>
+          </div>
+        </div>
+
+        <main
+          id="main-content"
+          tabIndex={-1}
+          className="mx-auto w-full max-w-[1180px] px-4 py-7 sm:px-6 sm:py-9 lg:px-10 lg:py-10"
+        >
+          {children}
+        </main>
+      </div>
+    </div>
+  );
+}

@@ -58,40 +58,41 @@
 - [x] Backend tests pass
 - [x] Frontend lint/typecheck/build pass
 - [x] No secrets committed
-- [ ] **Explicit user approval to begin Phase 1**
+- [x] **Explicit user approval to begin Phase 1**
 
 ## Phase 1 — Brand Identity & UI Foundation
 
 ### Design system
 
-- [ ] Final typography selection and scale
-- [ ] Spacing, radius, elevation and border tokens
-- [ ] Motion principles and reduced-motion variants
-- [ ] Primitive components: buttons, inputs, textareas, selects, checkboxes, dialogs, menus,
+- [x] Final typography selection and scale
+- [x] Spacing, radius, elevation and border tokens
+- [x] Motion principles and reduced-motion variants
+- [x] Primitive components: buttons, inputs, textareas, selects, checkboxes, dialogs, menus,
       tabs, toasts, tooltips, badges
-- [ ] State components: skeleton/loading, empty, error, success, inline validation
-- [ ] Component catalogue/preview route (development only or documented examples)
-- [ ] Focus, hover, active and disabled states across all primitives
-- [ ] Keyboard navigation and screen-reader labels
+- [x] State components: skeleton/loading, empty, error, success, inline validation
+- [x] Component catalogue at `/design` (internal, noindex, documented examples)
+- [x] Focus, hover, active and disabled states across all primitives
+- [x] Keyboard navigation and screen-reader labels
 
 ### Routes and shells
 
-- [ ] Premium landing page
-- [ ] Sign-in screen
-- [ ] Sign-up screen
-- [ ] Forgot-password screen
-- [ ] Responsive dashboard shell
-- [ ] Responsive settings shell
-- [ ] Desktop, tablet and mobile navigation
-- [ ] 404 and error surfaces
+- [x] Premium landing page
+- [x] Sign-in screen (visual preview with local validation)
+- [x] Sign-up screen (visual preview with local validation)
+- [x] Forgot-password screen (visual preview with local validation)
+- [x] Responsive dashboard shell
+- [x] Responsive settings shell
+- [x] Desktop, tablet and mobile navigation
+- [x] 404 and error surfaces
 
 ### Quality
 
-- [ ] Contrast and focus review
-- [ ] Mobile/tablet/desktop visual review
-- [ ] Lint, typecheck and production build
-- [ ] Documentation of the design system
-- [ ] Completion report and approval gate
+- [x] Contrast and focus review
+- [x] Mobile/tablet/desktop visual review
+- [x] Lint, typecheck and production build
+- [x] Documentation of the design system
+- [x] axe-core WCAG 2.0/2.1 A/AA audit (17 states, 0 violations)
+- [x] Completion report and approval gate
 
 ## Phase 2 — Authentication & Core Application
 
@@ -279,4 +280,4 @@
 - [x] Responsive foundation established
 - [x] Loading/empty/error state plan documented for future modules
 - [x] Existing functionality preserved
-- [ ] Every phase documented and tested before approval
+- [x] Every phase documented and tested before approval (Phases 0–1)

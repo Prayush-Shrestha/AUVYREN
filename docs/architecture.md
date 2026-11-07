@@ -1,7 +1,7 @@
 # Auvyren Architecture
 
-**Status:** Phase 0 foundation implemented. Later-phase modules are design intent, not
-shipped functionality.
+**Status:** Phase 1 brand and UI foundation implemented. Later-phase modules are design
+intent, not shipped functionality.
 
 ## 1. Product constraints
 
@@ -117,7 +117,7 @@ src/
 └── styles/                 Tokens and global styles
 ```
 
-Phase 0 creates only the directories with shipped files. Empty folders are not scaffolding.
+Phases create only directories with shipped files. Empty folders are not scaffolding.
 
 ### State and data fetching
 
@@ -138,7 +138,8 @@ Phase 0 creates only the directories with shipped files. Empty folders are not s
 ### Styling
 
 - Tailwind CSS v4 with CSS design tokens.
-- Dark editorial palette established in Phase 0; full typography, components and motion in Phase 1.
+- Dark ink/moss/paper editorial system established in Phase 1; full contract in
+  [design-system.md](design-system.md).
 - Minimal borders, restrained accents, no generic gradient-heavy dashboard treatment.
 
 ## 6. Backend architecture

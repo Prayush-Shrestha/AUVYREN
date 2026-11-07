@@ -7,26 +7,29 @@ pursue goals, build habits, keep knowledge, and make better decisions. It is des
 around **Quiet Intelligence** — deterministic help first, optional local AI second,
 and explicitly consented cloud AI last.
 
-**Current status: Phase 0 complete — awaiting approval.** The technical foundation is
-implemented and verified. Brand pages, authentication and productivity modules are not
-built yet; see the [roadmap](docs/roadmap.md) and [implementation checklist](docs/implementation-checklist.md).
+**Current status: Phase 1 complete — awaiting approval.** The brand, design system, landing
+page, visual auth previews and responsive workspace shells are implemented and verified.
+Authentication and productivity modules are not built yet; see the
+[roadmap](docs/roadmap.md) and [implementation checklist](docs/implementation-checklist.md).
 
 ## What exists today
 
-| Area | Phase 0 deliverable |
+| Area | Deliverable |
 | --- | --- |
 | Monorepo | Next.js 16 web app + FastAPI service + shared scripts |
-| Frontend | TypeScript, Tailwind CSS v4, App Router foundation, typed API client, health screen |
+| Brand & UI | Phase 1 ink/moss/paper identity, self-hosted fonts, tokens, motion, primitives and internal catalogue at `/design` |
+| Surfaces | Landing page, sign-in/sign-up/forgot-password previews, dashboard and settings shells, 404 and error boundaries |
+| Frontend | TypeScript, Tailwind CSS v4, App Router, typed API client, responsive navigation and honest state components |
 | Backend | Async FastAPI, Pydantic settings, RFC 9457 error responses, request IDs, CORS, security headers |
 | Database | PostgreSQL 17, SQLAlchemy 2 async models, Alembic migration, 13 tables, indexes and constraints |
-| Auth foundation | User/session/reset tables and security strategy documented (endpoints arrive in Phase 2) |
-| AI foundation | Provider architecture, deterministic-first plan, Ollama and cloud boundaries documented |
-| Quality | 14 backend tests, Ruff, ESLint, TypeScript, production web build |
-| Documentation | Architecture, schema, API, security, AI, roadmap, checklist, Phase 0 report |
+| Auth | User/session/reset tables and security strategy documented; screens validate locally but create no session until Phase 2 |
+| AI | Provider architecture, deterministic-first plan, Ollama and cloud boundaries documented |
+| Quality | 14 backend tests, 26 interaction checks, axe audit (17 states, 0 violations), lint, typecheck, production build |
+| Documentation | Architecture, schema, API, security, AI, design system, roadmap, checklist, Phase 0/1 reports |
 
 ## Stack
 
-- **Web:** Next.js 16.4, React 19, TypeScript, Tailwind CSS v4, Framer Motion (Phase 1)
+- **Web:** Next.js 16.4, React 19, TypeScript, Tailwind CSS v4, CSS-first motion (Framer Motion available for future choreography)
 - **API:** Python 3.12+, FastAPI, SQLAlchemy 2 async, Pydantic v2, Alembic
 - **Database:** PostgreSQL 17
 - **AI:** deterministic engine first; optional Ollama; opt-in cloud provider (Phases 4–6)
@@ -72,6 +75,7 @@ npm run dev
 Open:
 
 - Web: <http://localhost:3000>
+- Design catalogue: <http://localhost:3000/design> (internal, noindex)
 - API: <http://localhost:8000>
 - API docs: <http://localhost:8000/docs>
 - Readiness: <http://localhost:8000/health/ready>
@@ -111,8 +115,10 @@ AUVYREN/
 ├── apps/
 │   ├── web/                 Next.js App Router frontend
 │   │   └── src/
-│   │       ├── app/         Routes, layouts, global styles
-│   │       └── lib/         Environment + typed API client
+│   │       ├── app/         Routes, layouts, global styles, design catalogue
+│   │       ├── components/  UI primitives, layout shells, marketing components
+│   │       ├── features/    Feature-specific composition (auth previews now)
+│   │       └── lib/         Environment, typed API client, class merging
 │   └── api/                 FastAPI service
 │       ├── app/
 │       │   ├── api/         Transport: routes, middleware, errors
@@ -165,9 +171,11 @@ Full threat model and controls: [security](docs/security.md).
 - [API architecture](docs/api-architecture.md)
 - [Security & authentication strategy](docs/security.md)
 - [AI architecture](docs/ai-architecture.md)
+- [Design system](docs/design-system.md)
 - [Development roadmap](docs/roadmap.md)
 - [Implementation checklist](docs/implementation-checklist.md)
 - [Phase 0 completion report](docs/reports/phase-0.md)
+- [Phase 1 completion report](docs/reports/phase-1.md)
 
 ## Phase workflow
 
