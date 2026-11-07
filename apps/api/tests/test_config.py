@@ -6,6 +6,12 @@ BASE = {
     "database_url": "postgresql://user:pass@localhost:5432/auvyren",
     "secret_key": "a" * 48,
 }
+PRODUCTION = {
+    "app_env": "production",
+    "session_cookie_secure": True,
+    "email_provider": "smtp",
+    "smtp_host": "smtp.example.com",
+}
 
 
 def test_plain_postgres_url_is_normalized_to_asyncpg() -> None:
@@ -16,7 +22,7 @@ def test_plain_postgres_url_is_normalized_to_asyncpg() -> None:
 
 def test_production_requires_secure_cookies() -> None:
     with pytest.raises(ValidationError):
-        Settings(**BASE, app_env="production", session_cookie_secure=False)
+        Settings(**BASE, **{**PRODUCTION, "session_cookie_secure": False})
 
 
 def test_production_rejects_placeholder_secret() -> None:
@@ -24,16 +30,23 @@ def test_production_rejects_placeholder_secret() -> None:
         Settings(
             database_url=BASE["database_url"],
             secret_key="replace-with-at-least-32-random-characters",
-            app_env="production",
-            session_cookie_secure=True,
+            **PRODUCTION,
         )
 
 
 def test_production_rejects_wildcard_cors() -> None:
     with pytest.raises(ValidationError):
+        Settings(**BASE, **PRODUCTION, cors_origins="*")
+
+
+def test_production_rejects_console_email() -> None:
+    with pytest.raises(ValidationError):
         Settings(
             **BASE,
-            app_env="production",
-            session_cookie_secure=True,
-            cors_origins="*",
+            **{**PRODUCTION, "email_provider": "console", "smtp_host": "smtp.example.com"},
         )
+
+
+def test_absolute_session_lifetime_cannot_be_shorter_than_sliding_lifetime() -> None:
+    with pytest.raises(ValidationError):
+        Settings(**BASE, session_ttl_days=30, session_absolute_ttl_days=10)

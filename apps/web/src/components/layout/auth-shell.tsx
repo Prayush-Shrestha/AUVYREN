@@ -77,7 +77,7 @@ export function AuthShell({ children }: { children: React.ReactNode }) {
         </div>
 
         <footer className="px-5 pb-6 text-center text-[10px] uppercase tracking-[0.14em] text-faint sm:px-8">
-          Foundation preview · Accounts open in Phase 2
+          Argon2id · revocable sessions · local-first
         </footer>
       </div>
     </div>

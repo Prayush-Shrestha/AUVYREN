@@ -14,6 +14,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { useAuth } from "@/features/auth/auth-provider";
 
 const navigation = [
   { label: "System", href: "/#system" },
@@ -23,6 +24,8 @@ const navigation = [
 ];
 
 export function SiteHeader() {
+  const { user } = useAuth();
+
   return (
     <header className="sticky top-0 z-40 border-b border-border/60 bg-background/72 backdrop-blur-xl">
       <div className="container-page flex h-18 items-center justify-between gap-6">
@@ -43,12 +46,20 @@ export function SiteHeader() {
         </nav>
 
         <div className="hidden items-center gap-2 sm:flex">
-          <ButtonLink href="/sign-in" variant="ghost" size="sm">
-            Sign in
-          </ButtonLink>
-          <ButtonLink href="/dashboard" size="sm">
-            Preview workspace
-          </ButtonLink>
+          {user ? (
+            <ButtonLink href="/dashboard" size="sm">
+              Open workspace
+            </ButtonLink>
+          ) : (
+            <>
+              <ButtonLink href="/sign-in" variant="ghost" size="sm">
+                Sign in
+              </ButtonLink>
+              <ButtonLink href="/sign-up" size="sm">
+                Create an account
+              </ButtonLink>
+            </>
+          )}
         </div>
 
         <Dialog>
@@ -76,18 +87,22 @@ export function SiteHeader() {
                   </Link>
                 </DialogClose>
               ))}
-              <DialogClose asChild>
-                <Link
-                  href="/sign-in"
-                  className="py-3.5 text-body text-foreground-soft transition-colors hover:text-foreground"
-                >
-                  Sign in
-                </Link>
-              </DialogClose>
+              {!user ? (
+                <DialogClose asChild>
+                  <Link
+                    href="/sign-in"
+                    className="py-3.5 text-body text-foreground-soft transition-colors hover:text-foreground"
+                  >
+                    Sign in
+                  </Link>
+                </DialogClose>
+              ) : null}
             </nav>
             <div className="mt-6 flex flex-col gap-2">
               <DialogClose asChild>
-                <ButtonLink href="/dashboard">Preview workspace</ButtonLink>
+                <ButtonLink href={user ? "/dashboard" : "/sign-up"}>
+                  {user ? "Open workspace" : "Create an account"}
+                </ButtonLink>
               </DialogClose>
               <DialogClose asChild>
                 <ButtonLink href="/design" variant="ghost">

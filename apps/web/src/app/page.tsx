@@ -133,8 +133,8 @@ export default function Home() {
                   system — so attention can go where intention already is.
                 </p>
                 <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-                  <ButtonLink href="/dashboard" size="lg">
-                    Explore the workspace
+                  <ButtonLink href="/sign-up" size="lg">
+                    Create your account
                     <ArrowRight className="size-4" aria-hidden="true" />
                   </ButtonLink>
                   <ButtonLink href="#system" variant="secondary" size="lg">
@@ -449,12 +449,12 @@ export default function Home() {
                 <span className="serif-italic text-accent"> less of your attention.</span>
               </h2>
               <p className="mx-auto mt-6 max-w-xl text-body leading-relaxed text-muted">
-                Explore the workspace shell, or step through the account screens. Real
-                accounts and synchronization arrive in Phase 2.
+                Create an account and begin with an honest, empty workspace. The
+                productivity modules arrive in Phase 3; the foundation is already real.
               </p>
               <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
                 <ButtonLink href="/dashboard" size="lg">
-                  Preview the workspace
+                  Open your workspace
                   <ArrowUpRight className="size-4" aria-hidden="true" />
                 </ButtonLink>
                 <ButtonLink href="/sign-up" variant="secondary" size="lg">

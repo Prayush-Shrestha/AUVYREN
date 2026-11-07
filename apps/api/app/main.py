@@ -69,6 +69,9 @@ def create_app() -> FastAPI:
         response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
         response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
         response.headers["Cross-Origin-Resource-Policy"] = "same-site"
+        auth_path = f"{settings.api_v1_prefix}/auth"
+        if request.url.path == auth_path or request.url.path.startswith(f"{auth_path}/"):
+            response.headers["Cache-Control"] = "no-store"
         if settings.is_production:
             response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         return response

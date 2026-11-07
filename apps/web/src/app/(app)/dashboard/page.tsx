@@ -14,10 +14,12 @@ import { Badge } from "@/components/ui/badge";
 import { ButtonLink } from "@/components/ui/button";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import { EmptyState, InlineMessage } from "@/components/ui/states";
+import { firstName } from "@/features/auth/display";
+import { getServerUser } from "@/lib/api/server";
 
 export const metadata: Metadata = {
-  title: "Workspace preview",
-  description: "The Auvyren application shell and its empty, honest states.",
+  title: "Dashboard",
+  description: "Your Auvyren workspace and its honest empty states.",
 };
 
 const upcoming = [
@@ -41,27 +43,30 @@ const upcoming = [
   },
 ];
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  const user = await getServerUser().catch(() => null);
+  const greeting = user ? `Welcome back, ${firstName(user)}.` : "Welcome back.";
+
   return (
     <div>
       <header className="max-w-3xl">
-        <p className="eyebrow">Workspace preview</p>
+        <p className="eyebrow">Your workspace</p>
         <h1 className="mt-5 font-serif text-display-sm font-light text-foreground">
-          Your day, with room to think.
+          {greeting}
         </h1>
         <p className="mt-3 max-w-2xl text-body leading-relaxed text-muted">
-          This is the application shell, not a populated dashboard. When the productivity
-          modules arrive, this surface will be composed from your real records.
+          An honest, empty beginning. Tasks, goals and calendar data arrive in Phase 3 —
+          until then, nothing here is invented.
         </p>
       </header>
 
       <div className="mt-7">
         <InlineMessage
           tone="info"
-          title="The shell is ready. The day arrives in Phase 3."
+          title="Your account is ready. Your day arrives in Phase 3."
           action={
-            <ButtonLink href="/design" variant="secondary" size="sm">
-              View the system
+            <ButtonLink href="/settings" variant="secondary" size="sm">
+              Account settings
             </ButtonLink>
           }
         >

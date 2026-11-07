@@ -826,7 +826,7 @@ export default function DesignSystemPage() {
                 <Field
                   label="Account email"
                   htmlFor="ds-disabled"
-                  hint="Available after accounts arrive in Phase 2."
+                  hint="Email changes arrive with account verification."
                 >
                   <Input
                     id="ds-disabled"
@@ -1145,7 +1145,7 @@ export default function DesignSystemPage() {
                     See the system at work in the shell.
                   </h2>
                   <p className="mt-3 max-w-lg text-small leading-relaxed text-muted">
-                    The dashboard and settings previews use these exact primitives, with
+                    The dashboard and settings surfaces use these exact primitives, with
                     honest empty states and no sample data.
                   </p>
                 </div>

@@ -42,7 +42,7 @@ export default function NotFound() {
             Return home
           </ButtonLink>
           <ButtonLink href="/dashboard" variant="secondary">
-            Preview workspace
+            Open workspace
           </ButtonLink>
         </div>
       </div>

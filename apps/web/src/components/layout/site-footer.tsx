@@ -15,7 +15,7 @@ const groups = [
   {
     title: "Product",
     links: [
-      { label: "Preview workspace", href: "/dashboard" },
+      { label: "Your workspace", href: "/dashboard" },
       { label: "Sign in", href: "/sign-in" },
       { label: "Create an account", href: "/sign-up" },
       { label: "Design system", href: "/design" },
@@ -38,7 +38,7 @@ export function SiteFooter() {
             </p>
             <p className="mt-6 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.16em] text-faint">
               <span className="size-1.5 rounded-full bg-accent" aria-hidden="true" />
-              Foundation preview · Accounts open in Phase 2
+              Foundation · Accounts secured with Argon2id
             </p>
           </div>
 

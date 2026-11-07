@@ -39,14 +39,20 @@ class Settings(BaseSettings):
     allowed_hosts: str = "localhost,127.0.0.1,testserver"
     web_app_url: str = "http://localhost:3000"
 
-    # Sessions (activated in Phase 2)
+    # Sessions
     session_cookie_name: str = "auv_session"
     session_cookie_secure: bool = False
+    session_cookie_domain: str | None = None
     session_ttl_days: int = Field(default=30, ge=1, le=90)
+    session_absolute_ttl_days: int = Field(default=90, ge=1, le=365)
+    session_refresh_minutes: int = Field(default=5, ge=1, le=60)
     csrf_cookie_name: str = "auv_csrf"
     csrf_header_name: str = "X-CSRF-Token"
 
-    # Email (activated in Phase 2)
+    # Password reset
+    password_reset_ttl_minutes: int = Field(default=30, ge=5, le=120)
+
+    # Email
     email_provider: Literal["console", "smtp"] = "console"
     email_from: str = "no-reply@auvyren.local"
     smtp_host: str | None = None
@@ -77,6 +83,21 @@ class Settings(BaseSettings):
             raise ValueError("Comma-separated value must contain at least one item")
         return ",".join(items)
 
+    @field_validator("session_cookie_domain", mode="before")
+    @classmethod
+    def blank_cookie_domain_is_none(cls, value: object) -> object:
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
+    @field_validator("web_app_url")
+    @classmethod
+    def validate_web_app_url(cls, value: str) -> str:
+        value = value.rstrip("/")
+        if not value.startswith(("http://", "https://")):
+            raise ValueError("WEB_APP_URL must be an absolute http(s) URL")
+        return value
+
     @property
     def cors_origin_list(self) -> list[str]:
         return [origin for origin in self.cors_origins.split(",") if origin]
@@ -98,6 +119,13 @@ class Settings(BaseSettings):
                 raise ValueError("SECRET_KEY must be replaced in production")
             if "*" in self.cors_origin_list:
                 raise ValueError("Wildcard CORS origins are not allowed in production")
+            if self.email_provider != "smtp":
+                raise ValueError("EMAIL_PROVIDER must be smtp in production")
+            if not self.smtp_host:
+                raise ValueError("SMTP_HOST is required in production")
+
+        if self.session_absolute_ttl_days < self.session_ttl_days:
+            raise ValueError("SESSION_ABSOLUTE_TTL_DAYS must be at least SESSION_TTL_DAYS")
 
         if self.email_provider == "smtp" and not self.smtp_host:
             raise ValueError("SMTP_HOST is required when EMAIL_PROVIDER=smtp")

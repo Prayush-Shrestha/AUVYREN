@@ -17,8 +17,8 @@ import {
   Target,
 } from "lucide-react";
 
+import { AccountMenu } from "@/components/layout/account-menu";
 import { Badge } from "@/components/ui/badge";
-import { ButtonLink } from "@/components/ui/button";
 import {
   Dialog,
   DialogClose,
@@ -29,6 +29,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { AuvyrenLogo, AuvyrenMark } from "@/components/ui/logo";
+import { displayName, initials } from "@/features/auth/display";
+import { useAuth } from "@/features/auth/auth-provider";
 import { cn } from "@/lib/cn";
 
 interface NavItem {
@@ -106,7 +108,12 @@ function NavLink({
   if (onNavigate) {
     return (
       <DialogClose asChild>
-        <Link href={item.href} onClick={onNavigate} className={className} aria-current={active ? "page" : undefined}>
+        <Link
+          href={item.href}
+          onClick={onNavigate}
+          className={className}
+          aria-current={active ? "page" : undefined}
+        >
           {content}
         </Link>
       </DialogClose>
@@ -120,6 +127,30 @@ function NavLink({
       aria-current={active ? "page" : undefined}
     >
       {content}
+    </Link>
+  );
+}
+
+function AccountIdentity() {
+  const { user } = useAuth();
+
+  if (!user) return null;
+
+  return (
+    <Link
+      href="/settings"
+      className="mt-6 flex items-center gap-3 rounded-xl border border-border bg-background/45 p-3 transition-colors hover:border-border-strong hover:bg-background/70"
+    >
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-full border border-border bg-surface text-[11px] font-semibold text-accent">
+        {initials(user)}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-small font-semibold text-foreground-soft">
+          {displayName(user)}
+        </span>
+        <span className="mt-0.5 block truncate text-[11px] text-muted">{user.email}</span>
+      </span>
+      <span className="size-1.5 shrink-0 rounded-full bg-accent" aria-hidden="true" />
     </Link>
   );
 }
@@ -157,18 +188,7 @@ function NavGroups({ pathname, onNavigate }: { pathname: string; onNavigate?: ()
         </div>
       </nav>
 
-      <div className="mt-6 rounded-xl border border-border bg-background/45 p-3.5">
-        <p className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.13em] text-foreground-soft">
-          <span className="size-1.5 rounded-full bg-accent" aria-hidden="true" />
-          Foundation preview
-        </p>
-        <p className="mt-1.5 text-xs leading-relaxed text-muted">
-          No account is connected. Sessions and profiles arrive in Phase 2.
-        </p>
-        <ButtonLink href="/sign-in" variant="secondary" size="sm" className="mt-3 w-full">
-          Preview sign in
-        </ButtonLink>
-      </div>
+      <AccountIdentity />
     </>
   );
 }
@@ -176,6 +196,7 @@ function NavGroups({ pathname, onNavigate }: { pathname: string; onNavigate?: ()
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const { user } = useAuth();
   const current =
     [...primaryNav, ...secondaryNav].find((item) => isActive(pathname, item.href))?.label ??
     "Workspace";
@@ -195,37 +216,37 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       <div className="lg:pl-64">
         <header className="sticky top-0 z-20 flex h-16 items-center justify-between gap-4 border-b border-border/60 bg-background/80 px-4 backdrop-blur-xl sm:px-6 lg:hidden">
-          <Dialog open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
-            <DialogTrigger
-              className="flex size-9 items-center justify-center rounded-full border border-border text-foreground-soft transition-colors hover:bg-white/[0.05]"
-              aria-label="Open workspace navigation"
-            >
-              <Menu className="size-4" aria-hidden="true" />
-            </DialogTrigger>
-            <DialogContent className="max-h-[85dvh] overflow-y-auto">
-              <DialogHeader>
-                <DialogTitle className="flex items-center gap-3">
-                  <AuvyrenMark className="size-6" />
-                  Workspace
-                </DialogTitle>
-                <DialogDescription>Foundation preview navigation.</DialogDescription>
-              </DialogHeader>
-              <div className="flex min-h-[60dvh] flex-col">
-                <NavGroups
-                  pathname={pathname}
-                  onNavigate={() => setMobileNavOpen(false)}
-                />
-              </div>
-            </DialogContent>
-          </Dialog>
+          <div className="flex items-center gap-3">
+            <Dialog open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
+              <DialogTrigger
+                className="flex size-9 items-center justify-center rounded-full border border-border text-foreground-soft transition-colors hover:bg-white/[0.05]"
+                aria-label="Open workspace navigation"
+              >
+                <Menu className="size-4" aria-hidden="true" />
+              </DialogTrigger>
+              <DialogContent className="max-h-[85dvh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-3">
+                    <AuvyrenMark className="size-6" />
+                    Workspace
+                  </DialogTitle>
+                  <DialogDescription>Move through your workspace.</DialogDescription>
+                </DialogHeader>
+                <div className="flex min-h-[60dvh] flex-col">
+                  <NavGroups
+                    pathname={pathname}
+                    onNavigate={() => setMobileNavOpen(false)}
+                  />
+                </div>
+              </DialogContent>
+            </Dialog>
 
-          <Link href="/" aria-label="Auvyren home">
-            <AuvyrenLogo markClassName="size-6" wordmarkClassName="hidden sm:inline" />
-          </Link>
+            <Link href="/" aria-label="Auvyren home">
+              <AuvyrenLogo markClassName="size-6" wordmarkClassName="hidden sm:inline" />
+            </Link>
+          </div>
 
-          <Badge tone="accent" dot>
-            Preview
-          </Badge>
+          <AccountMenu />
         </header>
 
         <div className="hidden h-18 items-center justify-between border-b border-border/60 px-8 lg:flex">
@@ -233,15 +254,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <p className="text-[9px] font-semibold uppercase tracking-[0.18em] text-faint">
               Auvyren / {current}
             </p>
+            {user ? (
+              <p className="mt-1 text-xs text-muted">Signed in as {displayName(user)}</p>
+            ) : null}
           </div>
           <div className="flex items-center gap-4">
-            <Badge tone="outline">Phase 1 · Shell preview</Badge>
+            <Badge tone="success" dot>
+              Session active
+            </Badge>
             <Link
               href="/"
               className="text-xs text-muted transition-colors hover:text-foreground"
             >
               Back to site
             </Link>
+            <AccountMenu />
           </div>
         </div>
 

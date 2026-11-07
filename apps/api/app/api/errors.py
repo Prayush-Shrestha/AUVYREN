@@ -44,12 +44,14 @@ class AppError(Exception):
         title: str | None = None,
         detail: str | None = None,
         errors: list[FieldIssue] | None = None,
+        headers: dict[str, str] | None = None,
     ) -> None:
         self.status_code = status_code
         self.code = code
         self.title = title or HTTPStatus(status_code).phrase
         self.detail = detail or self.title
         self.errors = errors
+        self.headers = headers
         super().__init__(self.detail)
 
 
@@ -96,7 +98,8 @@ async def app_error_handler(request: Request, exc: AppError) -> JSONResponse:
             title=exc.title,
             detail=exc.detail,
             errors=exc.errors,
-        )
+        ),
+        headers=exc.headers,
     )
 
 

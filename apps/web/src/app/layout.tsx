@@ -6,6 +6,7 @@ import "@fontsource-variable/newsreader/wght-italic.css";
 import "./globals.css";
 
 import { Providers } from "@/components/providers";
+import { getServerUser } from "@/lib/api/server";
 
 export const metadata: Metadata = {
   title: {
@@ -35,7 +36,13 @@ export const viewport: Viewport = {
   colorScheme: "dark",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({
+  children,
+}: Readonly<{
+  children: React.ReactNode;
+}>) {
+  const initialUser = await getServerUser().catch(() => null);
+
   return (
     <html lang="en">
       <body className="min-h-dvh bg-background text-foreground antialiased">
@@ -45,7 +52,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         >
           Skip to content
         </a>
-        <Providers>{children}</Providers>
+        <Providers initialUser={initialUser}>{children}</Providers>
       </body>
     </html>
   );

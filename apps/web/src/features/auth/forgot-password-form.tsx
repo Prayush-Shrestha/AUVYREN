@@ -2,18 +2,86 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { ArrowLeft } from "lucide-react";
+import { ArrowLeft, MailCheck } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
+import { Button, ButtonLink } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/field";
 import { InlineMessage } from "@/components/ui/states";
-import { PreviewNotice } from "@/features/auth/preview-notice";
+import { forgotPasswordRequest } from "@/lib/api/auth";
+import { ApiError } from "@/lib/api/client";
 import { validateEmail } from "@/features/auth/validation";
 
 export function ForgotPasswordForm() {
   const [email, setEmail] = useState("");
-  const [error, setError] = useState<string>();
-  const [preview, setPreview] = useState(false);
+  const [fieldError, setFieldError] = useState<string>();
+  const [formError, setFormError] = useState<string>();
+  const [submitting, setSubmitting] = useState(false);
+  const [sent, setSent] = useState(false);
+
+  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const next = validateEmail(email);
+    setFieldError(next);
+    setFormError(undefined);
+    if (next) return;
+
+    setSubmitting(true);
+    try {
+      await forgotPasswordRequest({ email: email.trim() });
+      setSent(true);
+    } catch (error) {
+      if (error instanceof ApiError) {
+        setFormError(error.detail);
+        setFieldError(error.fieldErrors?.email);
+      } else {
+        setFormError(
+          "Auvyren could not be reached. Check your connection and try again.",
+        );
+      }
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (sent) {
+    return (
+      <div>
+        <p className="eyebrow">Password reset</p>
+        <h1 className="mt-5 font-serif text-display-sm font-light text-foreground">
+          Check your inbox.
+        </h1>
+        <p className="mt-3 text-small leading-relaxed text-muted">
+          We sent a request for the address you entered. The response is always the same,
+          whether or not an account exists.
+        </p>
+
+        <div className="mt-7">
+          <InlineMessage tone="info" title="If the account exists">
+            A single-use link is on its way to <strong>{email.trim()}</strong>. It expires
+            in 30 minutes, and using it signs out every other session.
+          </InlineMessage>
+        </div>
+
+        <div className="mt-7 space-y-3">
+          <ButtonLink href="/sign-in" className="w-full">
+            <MailCheck className="size-4" aria-hidden="true" />
+            Back to sign in
+          </ButtonLink>
+          <Button
+            type="button"
+            variant="ghost"
+            className="w-full"
+            onClick={() => {
+              setSent(false);
+              setFormError(undefined);
+            }}
+          >
+            Use a different email
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -26,21 +94,14 @@ export function ForgotPasswordForm() {
         sent — the response is the same either way.
       </p>
 
-      <div className="mt-7">
-        <PreviewNotice />
-      </div>
+      <form className="mt-7 space-y-5" noValidate onSubmit={handleSubmit}>
+        {formError ? (
+          <InlineMessage tone="danger" title="Request not sent">
+            {formError}
+          </InlineMessage>
+        ) : null}
 
-      <form
-        className="mt-7 space-y-5"
-        noValidate
-        onSubmit={(event) => {
-          event.preventDefault();
-          const next = validateEmail(email);
-          setError(next);
-          setPreview(!next);
-        }}
-      >
-        <Field label="Email address" htmlFor="forgot-email" error={error}>
+        <Field label="Email address" htmlFor="forgot-email" error={fieldError}>
           <Input
             id="forgot-email"
             name="email"
@@ -49,29 +110,23 @@ export function ForgotPasswordForm() {
             inputMode="email"
             placeholder="you@example.com"
             value={email}
-            aria-invalid={Boolean(error) || undefined}
-            aria-describedby={error ? "forgot-email-error" : undefined}
+            disabled={submitting}
+            aria-invalid={Boolean(fieldError) || undefined}
+            aria-describedby={fieldError ? "forgot-email-error" : undefined}
             onChange={(event) => {
               setEmail(event.target.value);
-              setError(undefined);
-              setPreview(false);
+              setFieldError(undefined);
+              setFormError(undefined);
             }}
             onBlur={() => {
-              if (email) setError(validateEmail(email));
+              if (email) setFieldError(validateEmail(email));
             }}
           />
         </Field>
 
-        <Button type="submit" className="w-full">
-          Send reset link
+        <Button type="submit" className="w-full" loading={submitting}>
+          {submitting ? "Sending…" : "Send reset link"}
         </Button>
-
-        {preview ? (
-          <InlineMessage tone="info" title="No email was sent">
-            Password reset and email delivery arrive in Phase 2. This screen validates the
-            address only.
-          </InlineMessage>
-        ) : null}
       </form>
 
       <Link

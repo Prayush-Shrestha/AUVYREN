@@ -1,6 +1,6 @@
 # Implementation Checklist
 
-**Legend:** ✅ complete · ◐ partial (foundation only) · ☐ not started
+**Legend:**  complete · ◐ partial (foundation only) · ☐ not started
 
 ## Phase 0 — Product Foundation & Architecture
 
@@ -98,34 +98,34 @@
 
 ### Backend
 
-- [ ] Argon2id password hashing
-- [ ] Registration with normalized email and validation
-- [ ] Login/logout and session rotation
-- [ ] Opaque sessions stored hashed; secure cookie settings
-- [ ] CSRF token generation and enforcement
-- [ ] Forgot/reset password with single-use hashed tokens
-- [ ] Rate limiting for auth endpoints
-- [ ] Profile and settings endpoints
-- [ ] Session listing and revocation
-- [ ] Account-enumeration-safe responses
-- [ ] Auth, ownership, CSRF and session-expiry tests
+- [x] Argon2id password hashing
+- [x] Registration with normalized email and validation
+- [x] Login/logout and session rotation
+- [x] Opaque sessions stored hashed; secure cookie settings
+- [x] CSRF token generation and enforcement
+- [x] Forgot/reset password with single-use hashed tokens
+- [x] Rate limiting for auth endpoints
+- [x] Profile and settings endpoints
+- [x] Session listing and revocation
+- [x] Account-enumeration-safe responses
+- [x] Auth, ownership, CSRF and session-expiry tests
 
 ### Frontend
 
-- [ ] Wire sign-in/sign-up/forgot/reset screens
-- [ ] Session-aware navigation
-- [ ] Protected dashboard/settings routes
-- [ ] Profile and account settings UI
-- [ ] Loading, success, field-error and auth-error states
-- [ ] Logout and session-expired handling
-- [ ] No hardcoded credentials or tokens in storage
+- [x] Wire sign-in/sign-up/forgot/reset screens
+- [x] Session-aware navigation
+- [x] Protected dashboard/settings routes
+- [x] Profile and account settings UI
+- [x] Loading, success, field-error and auth-error states
+- [x] Logout and session-expired handling
+- [x] No hardcoded credentials or tokens in storage
 
 ### Phase 2 exit gate
 
-- [ ] Real PostgreSQL-backed auth verified end to end
-- [ ] Cross-user access tests pass
-- [ ] Documentation updated
-- [ ] Completion report and approval gate
+- [x] Real PostgreSQL-backed auth verified end to end
+- [x] Cross-user access tests pass
+- [x] Documentation updated
+- [x] Completion report and approval gate
 
 ## Phase 3 — Personal Productivity System
 
@@ -280,4 +280,4 @@
 - [x] Responsive foundation established
 - [x] Loading/empty/error state plan documented for future modules
 - [x] Existing functionality preserved
-- [x] Every phase documented and tested before approval (Phases 0–1)
+- [x] Every phase documented and tested before approval (Phases 0–2)

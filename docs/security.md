@@ -1,7 +1,7 @@
 # Security and Authentication Strategy
 
-**Status:** Phase 0 establishes the security boundary and schema. Authentication endpoints,
-CSRF enforcement, rate limiting and AI consent flows are implemented in later phases.
+**Status:** Phase 2 is complete. Authentication endpoints, CSRF enforcement, rate limiting
+and session management are implemented and verified against real PostgreSQL.
 
 ## 1. Security goals
 
@@ -33,7 +33,7 @@ Out of scope for the initial web release: nation-state adversaries, a compromise
 and malicious users with server root access. Self-hosted operators are trusted infrastructure
 owners; the application still isolates user accounts.
 
-## 3. Authentication (Phase 2)
+## 3. Authentication (Phase 2 — complete)
 
 ### Passwords
 
@@ -50,8 +50,7 @@ owners; the application still isolates user accounts.
 - Unique email enforced in the database; conflicts return a safe, actionable validation error
   without exposing unrelated account details.
 - Successful login creates a new opaque session, sets cookies and updates `last_login_at`.
-- Failed login returns a generic invalid-credentials message and records a security event
-  (Phase 6 audit table; interim logging in Phase 2).
+- Failed login returns a generic invalid-credentials message and logs a security event.
 - Inactive users cannot authenticate.
 - The initial account response returns only id, email, display name and settings.
 
@@ -65,7 +64,7 @@ owners; the application still isolates user accounts.
   are throttled (e.g. once per 5 minutes) to reduce writes.
 - Login rotates/creates a session; logout revokes it; users can revoke other sessions.
 - Session tokens are compared in constant time where relevant.
-- A scheduled cleanup removes expired/revoked rows after a retention window.
+- A scheduled cleanup removes expired/revoked rows after a retention window (Phase 7 operational task).
 
 ### CSRF
 
@@ -74,7 +73,7 @@ owners; the application still isolates user accounts.
 - Every mutating request must send `X-CSRF-Token`; the server verifies it against the session.
 - `SameSite=Lax` blocks most cross-site submission; Origin/Referer validation adds defense in
   depth for state-changing requests.
-- Login/logout endpoints are also CSRF-aware where applicable. CORS does not replace CSRF.
+- Login/logout endpoints are CSRF-aware. CORS does not replace CSRF.
 
 ### Password reset
 
@@ -84,6 +83,7 @@ owners; the application still isolates user accounts.
 - Rate limited per email and IP.
 - Development uses a console email adapter that logs the link; production requires SMTP.
 - No token appears in API responses.
+- Reset requests also clear the existing session cookie on successful completion.
 
 ### Account protection
 
@@ -176,10 +176,10 @@ multi-tenant analytics make it necessary.
 | Request IDs, RFC 9457 errors, safe 500s | ✅ | — |
 | CORS allowlist, trusted hosts, security headers | ✅ | — |
 | Database constraints, cascades, unique tokens | ✅ | — |
-| Argon2id passwords and registration/login | — | 2 |
-| Opaque sessions, secure cookies, CSRF | Schema only | 2 |
-| Password reset email flow | Schema/config only | 2 |
-| Login rate limiting and security events | — | 2/6 |
+| Argon2id passwords and registration/login | ✅ | 2 |
+| Opaque sessions, secure cookies, CSRF | ✅ | 2 |
+| Password reset email flow | ✅ | 2 |
+| Login rate limiting and security events | ✅ | 2 |
 | AI consent and encrypted provider keys | — | 4/6 |
 | Export, deletion, audit trail | — | 6 |
 | CSP, dependency audit in CI, penetration tests | — | 7 |
