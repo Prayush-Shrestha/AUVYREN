@@ -74,6 +74,16 @@ def create_app() -> FastAPI:
             response.headers["Cache-Control"] = "no-store"
         if settings.is_production:
             response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+            # Content Security Policy - restrictive by default
+            response.headers["Content-Security-Policy"] = (
+                "default-src 'none'; "
+                "connect-src 'self'; "
+                "img-src 'self' data:; "
+                "style-src 'self'; "
+                "script-src 'self'; "
+                "base-uri 'self'; "
+                "form-action 'self'"
+            )
         return response
 
     register_exception_handlers(app)

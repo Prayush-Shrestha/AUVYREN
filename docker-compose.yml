@@ -18,5 +18,72 @@ services:
       timeout: 5s
       retries: 12
 
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      APP_ENV: ${APP_ENV:-production}
+      APP_NAME: ${APP_NAME:-Auvyren API}
+      APP_VERSION: ${APP_VERSION:-0.1.0}
+      DEBUG: ${DEBUG:-false}
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be set in .env}
+      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set in .env}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
+      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
+      WEB_APP_URL: ${WEB_APP_URL:?WEB_APP_URL must be set in .env}
+      DOCS_ENABLED: ${DOCS_ENABLED:-false}
+      API_V1_PREFIX: ${API_V1_PREFIX:-/api/v1}
+      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-auv_session}
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-true}
+      SESSION_COOKIE_DOMAIN: ${SESSION_COOKIE_DOMAIN:-}
+      SESSION_TTL_DAYS: ${SESSION_TTL_DAYS:-30}
+      SESSION_ABSOLUTE_TTL_DAYS: ${SESSION_ABSOLUTE_TTL_DAYS:-90}
+      SESSION_REFRESH_MINUTES: ${SESSION_REFRESH_MINUTES:-5}
+      CSRF_COOKIE_NAME: ${CSRF_COOKIE_NAME:-auv_csrf}
+      CSRF_HEADER_NAME: ${CSRF_HEADER_NAME:-X-CSRF-Token}
+      PASSWORD_RESET_TTL_MINUTES: ${PASSWORD_RESET_TTL_MINUTES:-30}
+      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-console}
+      EMAIL_FROM: ${EMAIL_FROM:-no-reply@auvyren.local}
+      SMTP_HOST: ${SMTP_HOST:-}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USERNAME: ${SMTP_USERNAME:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      SMTP_USE_TLS: ${SMTP_USE_TLS:-true}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://localhost:11434}
+      OLLAMA_REQUEST_TIMEOUT_SECONDS: ${OLLAMA_REQUEST_TIMEOUT_SECONDS:-120}
+      AI_KEY_ENCRYPTION_KEY: ${AI_KEY_ENCRYPTION_KEY:-}
+    ports:
+      - "${API_PORT:-8000}:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000/api/v1}
+      API_INTERNAL_URL: ${API_INTERNAL_URL:-http://api:8000/api/v1}
+      AUV_SESSION_COOKIE_NAME: ${AUV_SESSION_COOKIE_NAME:-auv_session}
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
 volumes:
   auvyren_pgdata:
