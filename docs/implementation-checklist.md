@@ -226,20 +226,20 @@
 
 ## Phase 6 — Privacy, Synchronization & Cloud AI
 
-- [ ] User-controlled AI permissions
-- [ ] Encrypted cloud provider keys
-- [ ] Local/cloud processing indicators
-- [ ] Cloud provider adapter with server-side calls
-- [ ] Consent before context transmission
-- [ ] Usage limits and cost tracking
-- [ ] Local-only and hybrid modes
-- [ ] Data export
-- [ ] Account deletion with re-authentication
-- [ ] Sync support and conflict handling
-- [ ] Sync status and offline-friendly workflows
-- [ ] Audit/security events
-- [ ] Privacy and permission tests
-- [ ] Documentation and completion report
+- [x] User-controlled AI permissions
+- [x] Encrypted cloud provider keys
+- [x] Local/cloud processing indicators
+- [x] Cloud provider adapter with server-side calls
+- [x] Consent before context transmission
+- [x] Usage limits and cost tracking
+- [x] Local-only and hybrid modes
+- [x] Data export
+- [x] Account deletion with re-authentication
+- [x] Sync support and conflict handling
+- [x] Sync status and offline-friendly workflows
+- [x] Audit/security events
+- [x] Privacy and permission tests
+- [x] Documentation and completion report
 
 ## Phase 7 — Testing, Optimization & Deployment
 

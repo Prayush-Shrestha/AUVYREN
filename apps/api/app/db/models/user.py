@@ -12,6 +12,7 @@ from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 if TYPE_CHECKING:
     from app.db.models.auth import UserSession
     from app.db.models.knowledge import Note
+    from app.db.models.privacy import AccountDeletion, AIConsent, AuditEvent, DataExport
 
 
 class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
@@ -45,6 +46,30 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         cascade="all, delete-orphan",
         passive_deletes=True,
         order_by="Note.created_at.desc()",
+    )
+    ai_consents: Mapped[list[AIConsent]] = relationship(
+        "AIConsent",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    data_exports: Mapped[list[DataExport]] = relationship(
+        "DataExport",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    account_deletions: Mapped[list[AccountDeletion]] = relationship(
+        "AccountDeletion",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    audit_events: Mapped[list[AuditEvent]] = relationship(
+        "AuditEvent",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
     )
 
 

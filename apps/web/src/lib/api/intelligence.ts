@@ -20,6 +20,14 @@ import type {
   ProviderSecretResponse,
   TaskPrioritizeResponse,
   WeeklyReviewDraftResponse,
+  AIConsentCreate,
+  AIConsentResponse,
+  DataExportCreate,
+  DataExportResponse,
+  AccountDeletionCreate,
+  AccountDeletionResponse,
+  AuditEventResponse,
+  ExportDownloadResponse,
 } from "./types";
 
 export async function createNoteRequest(
@@ -192,5 +200,127 @@ export async function providerHealthRequest(
 ): Promise<ProviderInfoResponse> {
   return apiRequest<ProviderInfoResponse>(
     `/intelligence/providers/${encodeURIComponent(providerName)}/health`,
+  );
+}
+
+// Privacy - Consent
+
+export async function listConsentsRequest(): Promise<AIConsentResponse[]> {
+  return apiRequest<AIConsentResponse[]>("/privacy/consent");
+}
+
+export async function createConsentRequest(
+  input: AIConsentCreate,
+): Promise<AIConsentResponse> {
+  return apiRequest<AIConsentResponse>("/privacy/consent", {
+    method: "POST",
+    body: input,
+  });
+}
+
+export async function revokeConsentRequest(
+  provider: string,
+): Promise<void> {
+  return apiRequest<void>(`/privacy/consent/${provider}`, {
+    method: "DELETE",
+  });
+}
+
+export async function checkConsentRequest(
+  provider: string,
+): Promise<{ granted: boolean; provider: string }> {
+  return apiRequest<{ granted: boolean; provider: string }>(
+    `/privacy/consent/${provider}/check`
+  );
+}
+
+// Privacy - Data Export
+
+export async function createExportRequest(
+  input: DataExportCreate,
+): Promise<DataExportResponse> {
+  return apiRequest<DataExportResponse>("/privacy/export", {
+    method: "POST",
+    body: input,
+  });
+}
+
+export async function listExportsRequest({
+  limit,
+  offset,
+}: {
+  limit?: number;
+  offset?: number;
+}): Promise<DataExportResponse[]> {
+  const params = new URLSearchParams();
+  if (limit) params.set("limit", String(limit));
+  if (offset) params.set("offset", String(offset));
+  const qs = params.toString();
+  return apiRequest<DataExportResponse[]>(
+    `/privacy/export${qs ? "?" + qs : ""}`
+  );
+}
+
+export async function getExportRequest(
+  exportId: string,
+): Promise<DataExportResponse> {
+  return apiRequest<DataExportResponse>(`/privacy/export/${exportId}`);
+}
+
+export async function downloadExportRequest(
+  exportId: string,
+): Promise<ExportDownloadResponse> {
+  return apiRequest<ExportDownloadResponse>(
+    `/privacy/export/${exportId}/download`
+  );
+}
+
+// Privacy - Account Deletion
+
+export async function requestAccountDeletionRequest(
+  input: AccountDeletionCreate,
+): Promise<AccountDeletionResponse> {
+  return apiRequest<AccountDeletionResponse>("/privacy/account/delete", {
+    method: "POST",
+    body: input,
+  });
+}
+
+export async function confirmAccountDeletionRequest(
+  confirmationToken: string,
+): Promise<AccountDeletionResponse> {
+  return apiRequest<AccountDeletionResponse>(
+    "/privacy/account/delete/confirm",
+    {
+      method: "POST",
+      body: { confirmation_token: confirmationToken },
+    }
+  );
+}
+
+export async function completeAccountDeletionRequest(): Promise<void> {
+  return apiRequest<void>("/privacy/account/delete/complete", {
+    method: "POST",
+  });
+}
+
+// Privacy - Audit Events
+
+export async function listAuditEventsRequest({
+  eventType,
+  limit,
+  offset,
+}: {
+  eventType?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<AuditEventResponse[]> {
+  const params = new URLSearchParams();
+  if (eventType) params.set("event_type", eventType);
+  if (limit) params.set("limit", String(limit));
+  if (offset) params.set("offset", String(offset));
+  const qs = params.toString();
+  return apiRequest<AuditEventResponse[]>(
+    `/privacy/audit${qs ? "?" + qs : ""}`
   );
 }

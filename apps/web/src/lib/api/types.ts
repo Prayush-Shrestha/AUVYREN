@@ -237,3 +237,65 @@ export interface KnowledgeSearchResponse {
   notes: NoteResponse[];
   total: number;
 }
+
+// Privacy types
+
+export interface AIConsentCreate {
+  provider: string;
+  policy_version?: string;
+}
+
+export interface AIConsentResponse {
+  id: string;
+  user_id: string;
+  provider: string;
+  granted_at: string | null;
+  revoked_at: string | null;
+  policy_version: string;
+}
+
+export type DataExportCreate = Record<string, never>;
+
+export interface DataExportResponse {
+  id: string;
+  user_id: string;
+  status: string;
+  file_path: string | null;
+  file_size_bytes: number | null;
+  record_count: number | null;
+  completed_at: string | null;
+  error_message: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AccountDeletionCreate {
+  reason?: string;
+}
+
+export interface AccountDeletionResponse {
+  id: string;
+  user_id: string;
+  status: string;
+  confirmation_token: string | null;
+  confirmed_at: string | null;
+  completed_at: string | null;
+  reason: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AuditEventResponse {
+  id: string;
+  user_id: string | null;
+  event_type: string;
+  details: string | null;
+  ip_address: string | null;
+  user_agent: string | null;
+  created_at: string;
+}
+
+export interface ExportDownloadResponse {
+  download_url: string;
+  expires_at: string;
+}

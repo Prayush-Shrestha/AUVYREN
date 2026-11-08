@@ -181,7 +181,7 @@ multi-tenant analytics make it necessary.
 | Password reset email flow | ✅ | 2 |
 | Login rate limiting and security events | ✅ | 2 |
 | AI consent and encrypted provider keys | ✅ | 4 |
-| Export, deletion, audit trail | — | 6 |
+| Export, deletion, audit trail | ✅ | 6 |
 | CSP, dependency audit in CI, penetration tests | — | 7 |
 
 ## 11. Security review gates
