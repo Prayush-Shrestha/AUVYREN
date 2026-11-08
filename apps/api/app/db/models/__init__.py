@@ -14,6 +14,7 @@ from app.db.models.enums import (
 )
 from app.db.models.goal import Goal
 from app.db.models.habit import Habit, HabitLog
+from app.db.models.knowledge import Note, NoteKind, NoteLink, NoteSourceType
 from app.db.models.milestone import Milestone
 from app.db.models.project import Project
 from app.db.models.routine import Routine, RoutineStep
@@ -33,6 +34,10 @@ __all__ = [
     "HabitSchedule",
     "Milestone",
     "MilestoneStatus",
+    "Note",
+    "NoteLink",
+    "NoteKind",
+    "NoteSourceType",
     "PasswordResetToken",
     "Project",
     "ProjectStatus",

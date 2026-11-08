@@ -11,6 +11,7 @@ from app.db.base import Base, TimestampMixin, UUIDPrimaryKeyMixin
 
 if TYPE_CHECKING:
     from app.db.models.auth import UserSession
+    from app.db.models.knowledge import Note
 
 
 class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
@@ -37,6 +38,13 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         back_populates="user",
         cascade="all, delete-orphan",
         passive_deletes=True,
+    )
+    notes: Mapped[list[Note]] = relationship(
+        "Note",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+        order_by="Note.created_at.desc()",
     )
 
 

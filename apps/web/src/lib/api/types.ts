@@ -180,3 +180,60 @@ export interface ProviderConfigureResponse {
 export interface ProviderSecretResponse {
   secret_hash: string | null;
 }
+
+// Knowledge types
+
+export interface NoteCreate {
+  title: string;
+  content: string | null;
+  kind: string;
+  source_type: string;
+  source_id: string | null;
+  tags: string | null;
+}
+
+export interface NoteUpdate {
+  title?: string;
+  content?: string | null;
+  kind?: string;
+  source_type?: string;
+  source_id?: string | null;
+  tags?: string | null;
+}
+
+export interface NoteLinkCreate {
+  source_note_id: string;
+  target_note_id: string;
+  link_type: string;
+}
+
+export interface NoteResponse {
+  id: string;
+  user_id: string;
+  title: string;
+  content: string | null;
+  kind: string;
+  source_type: string;
+  source_id: string | null;
+  tags: string | null;
+  deleted_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface NoteListResponse {
+  notes: NoteResponse[];
+}
+
+export interface NoteLinkResponse {
+  id: string;
+  source_note_id: string;
+  target_note_id: string;
+  link_type: string;
+  created_at: string;
+}
+
+export interface KnowledgeSearchResponse {
+  notes: NoteResponse[];
+  total: number;
+}

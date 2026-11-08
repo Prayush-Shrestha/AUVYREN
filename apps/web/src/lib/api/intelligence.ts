@@ -6,6 +6,13 @@ import type {
   DeadlineAwarenessResponse,
   GoalProgressResponse,
   HabitConsistencyResponse,
+  KnowledgeSearchResponse,
+  NoteCreate,
+  NoteLinkCreate,
+  NoteLinkResponse,
+  NoteListResponse,
+  NoteResponse,
+  NoteUpdate,
   PatternResponse,
   ProviderConfigureRequest,
   ProviderConfigureResponse,
@@ -14,6 +21,111 @@ import type {
   TaskPrioritizeResponse,
   WeeklyReviewDraftResponse,
 } from "./types";
+
+export async function createNoteRequest(
+  input: NoteCreate,
+): Promise<NoteResponse> {
+  return apiRequest<NoteResponse>("/knowledge", {
+    method: "POST",
+    body: input,
+  });
+}
+
+export async function listNotesRequest({
+  kind,
+  source_type,
+  include_deleted,
+  limit,
+  offset,
+}: {
+  kind?: string;
+  source_type?: string;
+  include_deleted?: boolean;
+  limit?: number;
+  offset?: number;
+}): Promise<NoteListResponse> {
+  const params = new URLSearchParams();
+  if (kind) params.set("kind", kind);
+  if (source_type) params.set("source_type", source_type);
+  if (include_deleted) params.set("include_deleted", "true");
+  if (limit) params.set("limit", String(limit));
+  if (offset) params.set("offset", String(offset));
+  const qs = params.toString();
+  return apiRequest<NoteListResponse>(
+    `/knowledge${qs ? "?" + qs : ""}`,
+  );
+}
+
+export async function getNoteRequest(
+  noteId: string,
+): Promise<NoteResponse> {
+  return apiRequest<NoteResponse>(`/knowledge/${noteId}`);
+}
+
+export async function updateNoteRequest(
+  noteId: string,
+  input: NoteUpdate,
+): Promise<NoteResponse> {
+  return apiRequest<NoteResponse>(`/knowledge/${noteId}`, {
+    method: "PATCH",
+    body: input,
+  });
+}
+
+export async function deleteNoteRequest(
+  noteId: string,
+): Promise<void> {
+  return apiRequest<void>(`/knowledge/${noteId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function restoreNoteRequest(
+  noteId: string,
+): Promise<NoteResponse> {
+  return apiRequest<NoteResponse>(`/knowledge/${noteId}/restore`, {
+    method: "POST",
+  });
+}
+
+export async function createNoteLinkRequest(
+  noteId: string,
+  input: NoteLinkCreate,
+): Promise<NoteResponse> {
+  return apiRequest<NoteResponse>(`/knowledge/${noteId}/links`, {
+    method: "POST",
+    body: input,
+  });
+}
+
+export async function listNoteLinksRequest(
+  noteId: string,
+): Promise<NoteLinkResponse[]> {
+  return apiRequest<NoteLinkResponse[]>(`/knowledge/${noteId}/links`);
+}
+
+export async function deleteNoteLinkRequest(
+  linkId: string,
+): Promise<void> {
+  return apiRequest<void>(`/knowledge/links/${linkId}`, {
+    method: "DELETE",
+  });
+}
+
+export async function searchNotesRequest({
+  q,
+  kind,
+  limit,
+}: {
+  q: string;
+  kind?: string;
+  limit?: number;
+}): Promise<KnowledgeSearchResponse> {
+  return apiRequest<KnowledgeSearchResponse>("/knowledge/search", {
+    method: "POST",
+    body: { q, kind, limit: limit ?? 50 },
+  });
+}
 
 export async function prioritizeTasksRequest(): Promise<TaskPrioritizeResponse> {
   return apiRequest<TaskPrioritizeResponse>("/intelligence/prioritize");

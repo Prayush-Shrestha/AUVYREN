@@ -7,6 +7,7 @@ import { firstName } from "@/features/auth/display";
 import { briefingRequest } from "@/lib/api/intelligence";
 import { EmptyState } from "@/components/ui/states";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
+import type { BriefingResponse } from "@/lib/api/types";
 
 export const metadata: Metadata = {
   title: "Intelligence",
@@ -17,7 +18,7 @@ export default async function IntelligencePage() {
   const user = await getServerUser().catch(() => null);
   const greeting = user ? `Welcome back, ${firstName(user)}.` : "Welcome back.";
 
-  let briefing;
+  let briefing: BriefingResponse | null;
   try {
     briefing = await briefingRequest();
   } catch {

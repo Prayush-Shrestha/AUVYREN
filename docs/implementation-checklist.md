@@ -212,17 +212,17 @@
 
 ## Phase 5 — Personal Intelligence & Knowledge Workspace
 
-- [ ] Notes CRUD with Markdown-safe rendering
-- [ ] Knowledge library and search
-- [ ] Daily journal
-- [ ] Decision records
-- [ ] Weekly and monthly reviews
-- [ ] Links to goals, projects, tasks and notes
-- [ ] Neglected-goal detection
-- [ ] Deadline/habit/overload surfacing
-- [ ] AI-assisted summaries with provenance
-- [ ] Generated vs user-authored distinction throughout
-- [ ] Tests and completion report
+- [x] Notes CRUD with Markdown-safe rendering
+- [x] Knowledge library and search
+- [x] Daily journal
+- [x] Decision records
+- [x] Weekly and monthly reviews
+- [x] Links to goals, projects, tasks and notes
+- [x] Neglected-goal detection
+- [x] Deadline/habit/overload surfacing
+- [x] AI-assisted summaries with provenance
+- [x] Generated vs user-authored distinction throughout
+- [x] Tests and completion report
 
 ## Phase 6 — Privacy, Synchronization & Cloud AI
 
