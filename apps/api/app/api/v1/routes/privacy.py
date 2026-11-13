@@ -1,7 +1,7 @@
-"""Privacy, consent, export, and deletion endpoints (Phase 6).
+"""Privacy, consent, export, and deletion endpoints.
 
 All endpoints require an authenticated session. Mutating routes require CSRF
-validation. Cloud AI is not available in Phase 6; consent gates all AI access.
+validation. Cloud AI is not available; consent gates all provider access.
 """
 
 from __future__ import annotations
@@ -9,50 +9,62 @@ from __future__ import annotations
 import uuid
 from datetime import UTC, datetime, timedelta
 
-from fastapi import APIRouter, Depends, Query, Response, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, Query, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.dependencies import get_current_auth, require_csrf
 from app.api.errors import AppError
-from app.db.models.privacy import AccountDeletion
+from app.core.cookies import clear_csrf_cookie, clear_session_cookie
+from app.core.security import generate_token, hash_token
 from app.db.session import get_db_session
 from app.schemas.privacy import (
+    AccountDeletionConfirmRequest,
     AccountDeletionCreate,
+    AccountDeletionRequestResponse,
     AccountDeletionResponse,
     AIConsentCreate,
     AIConsentResponse,
     AuditEventResponse,
+    ConsentCheckResponse,
     DataExportCreate,
     DataExportResponse,
     ExportDownloadResponse,
 )
-from app.services.auth import CurrentAuth
+from app.services.auth import CurrentAuth, request_metadata
 from app.services.privacy import (
     check_consent,
     complete_account_deletion,
+    confirm_account_deletion,
     create_export,
     create_or_update_consent,
     get_export,
-    utcnow,
-)
-from app.services.privacy import (
-    list_audit_events as list_audit_events_svc,
-)
-from app.services.privacy import (
-    list_consents as list_consents_svc,
-)
-from app.services.privacy import (
-    list_exports as list_exports_svc,
-)
-from app.services.privacy import (
-    request_account_deletion as request_account_deletion_svc,
-)
-from app.services.privacy import (
-    revoke_consent as revoke_consent_svc,
+    list_audit_events,
+    list_consents,
+    list_exports,
+    record_audit_event,
+    request_account_deletion,
+    revoke_consent,
 )
 
 router = APIRouter(prefix="/privacy", tags=["Privacy"], dependencies=[Depends(require_csrf)])
+
+
+async def _audit(
+    db: AsyncSession,
+    request: Request,
+    auth: CurrentAuth,
+    event_type: str,
+    details: str,
+) -> None:
+    user_agent, ip_address = request_metadata(request)
+    await record_audit_event(
+        db,
+        user_id=auth.user.id,
+        event_type=event_type,
+        details=details,
+        ip_address=ip_address,
+        user_agent=user_agent,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -65,22 +77,24 @@ router = APIRouter(prefix="/privacy", tags=["Privacy"], dependencies=[Depends(re
     response_model=list[AIConsentResponse],
     summary="List AI consent settings",
 )
-async def list_consents(
+async def list_consents_endpoint(
     auth: CurrentAuth = Depends(get_current_auth),
     db: AsyncSession = Depends(get_db_session),
 ) -> list[AIConsentResponse]:
-    consents = await list_consents_svc(db, user_id=auth.user.id)
+    consents = await list_consents(db, user_id=auth.user.id)
     return [AIConsentResponse.model_validate(c) for c in consents]
 
 
 @router.post(
     "/consent/{provider}",
     response_model=AIConsentResponse,
+    status_code=status.HTTP_201_CREATED,
     summary="Grant or update AI provider consent",
 )
 async def create_consent_endpoint(
     provider: str,
     payload: AIConsentCreate,
+    request: Request,
     auth: CurrentAuth = Depends(get_current_auth),
     db: AsyncSession = Depends(get_db_session),
 ) -> AIConsentResponse:
@@ -92,6 +106,7 @@ async def create_consent_endpoint(
             detail="Provider in URL does not match body.",
         )
     consent = await create_or_update_consent(db, user_id=auth.user.id, payload=payload)
+    await _audit(db, request, auth, "ai.consent.granted", f"provider={provider}")
     await db.commit()
     await db.refresh(consent)
     return AIConsentResponse.model_validate(consent)
@@ -104,11 +119,12 @@ async def create_consent_endpoint(
 )
 async def revoke_consent_endpoint(
     provider: str,
+    request: Request,
     response: Response,
     auth: CurrentAuth = Depends(get_current_auth),
     db: AsyncSession = Depends(get_db_session),
 ) -> None:
-    consent = await revoke_consent_svc(db, user_id=auth.user.id, provider=provider)
+    consent = await revoke_consent(db, user_id=auth.user.id, provider=provider)
     if consent is None:
         raise AppError(
             404,
@@ -116,22 +132,23 @@ async def revoke_consent_endpoint(
             title="Consent not found",
             detail="No consent record found for this provider.",
         )
+    await _audit(db, request, auth, "ai.consent.revoked", f"provider={provider}")
     await db.commit()
     response.status_code = status.HTTP_204_NO_CONTENT
 
 
 @router.get(
     "/consent/{provider}/check",
-    response_model=dict,
+    response_model=ConsentCheckResponse,
     summary="Check if AI provider consent is granted",
 )
 async def check_consent_endpoint(
     provider: str,
     auth: CurrentAuth = Depends(get_current_auth),
     db: AsyncSession = Depends(get_db_session),
-) -> dict:
+) -> ConsentCheckResponse:
     granted = await check_consent(db, user_id=auth.user.id, provider=provider)
-    return {"granted": granted, "provider": provider}
+    return ConsentCheckResponse(granted=granted, provider=provider)
 
 
 # ---------------------------------------------------------------------------
@@ -147,10 +164,12 @@ async def check_consent_endpoint(
 )
 async def create_export_endpoint(
     payload: DataExportCreate,
+    request: Request,
     auth: CurrentAuth = Depends(get_current_auth),
     db: AsyncSession = Depends(get_db_session),
 ) -> DataExportResponse:
     export = await create_export(db, user_id=auth.user.id, payload=payload)
+    await _audit(db, request, auth, "data.export.requested", f"export_id={export.id}")
     await db.commit()
     await db.refresh(export)
     return DataExportResponse.model_validate(export)
@@ -167,7 +186,7 @@ async def list_exports_endpoint(
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
 ) -> list[DataExportResponse]:
-    exports = await list_exports_svc(db, user_id=auth.user.id, limit=limit, offset=offset)
+    exports = await list_exports(db, user_id=auth.user.id, limit=limit, offset=offset)
     return [DataExportResponse.model_validate(e) for e in exports]
 
 
@@ -230,21 +249,31 @@ async def download_export_endpoint(
 
 @router.post(
     "/account/delete",
-    response_model=AccountDeletionResponse,
+    response_model=AccountDeletionRequestResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Request account deletion",
 )
 async def request_account_deletion_endpoint(
     payload: AccountDeletionCreate,
+    request: Request,
     auth: CurrentAuth = Depends(get_current_auth),
     db: AsyncSession = Depends(get_db_session),
-) -> AccountDeletionResponse:
-    deletion = await request_account_deletion_svc(
-        db, user_id=auth.user.id, payload=payload
+) -> AccountDeletionRequestResponse:
+    raw_token = generate_token()
+    deletion = await request_account_deletion(
+        db,
+        user_id=auth.user.id,
+        payload=payload,
+        confirmation_token_hash=hash_token(raw_token),
     )
+    await _audit(db, request, auth, "account.deletion.requested", f"deletion_id={deletion.id}")
     await db.commit()
     await db.refresh(deletion)
-    return AccountDeletionResponse.model_validate(deletion)
+    base = AccountDeletionResponse.model_validate(deletion)
+    return AccountDeletionRequestResponse(
+        **base.model_dump(),
+        confirmation_token=raw_token,
+    )
 
 
 @router.post(
@@ -253,32 +282,24 @@ async def request_account_deletion_endpoint(
     summary="Confirm account deletion with token",
 )
 async def confirm_account_deletion_endpoint(
-    confirmation_token: str,
+    payload: AccountDeletionConfirmRequest,
+    request: Request,
     auth: CurrentAuth = Depends(get_current_auth),
     db: AsyncSession = Depends(get_db_session),
 ) -> AccountDeletionResponse:
-    result = await db.execute(
-        select(AccountDeletion).where(
-            AccountDeletion.user_id == auth.user.id,
-            AccountDeletion.status == "pending",
-        )
+    deletion = await confirm_account_deletion(
+        db,
+        user_id=auth.user.id,
+        confirmation_token=payload.confirmation_token,
     )
-    deletion = result.scalar_one_or_none()
     if deletion is None:
         raise AppError(
-            404,
-            "deletion_not_found",
-            title="Deletion not found",
-            detail="No pending deletion request found.",
-        )
-    if deletion.confirmation_token != confirmation_token:
-        raise AppError(
-            403,
+            400,
             "invalid_confirmation_token",
             title="Invalid confirmation token",
-            detail="The confirmation token is invalid or expired.",
+            detail="The confirmation token is invalid or no pending deletion exists.",
         )
-    deletion.confirmed_at = utcnow()
+    await _audit(db, request, auth, "account.deletion.confirmed", f"deletion_id={deletion.id}")
     await db.commit()
     await db.refresh(deletion)
     return AccountDeletionResponse.model_validate(deletion)
@@ -290,27 +311,23 @@ async def confirm_account_deletion_endpoint(
     summary="Complete account deletion (requires confirmed deletion)",
 )
 async def complete_account_deletion_endpoint(
+    request: Request,
     response: Response,
     auth: CurrentAuth = Depends(get_current_auth),
     db: AsyncSession = Depends(get_db_session),
 ) -> None:
-    result = await db.execute(
-        select(AccountDeletion).where(
-            AccountDeletion.user_id == auth.user.id,
-            AccountDeletion.status == "confirmed",
-        )
-    )
-    deletion = result.scalar_one_or_none()
-    if deletion is None:
+    completed = await complete_account_deletion(db, user_id=auth.user.id)
+    if not completed:
         raise AppError(
             404,
             "deletion_not_confirmed",
             title="Deletion not confirmed",
             detail="Account deletion must be confirmed before completion.",
         )
-    await complete_account_deletion(db, user_id=auth.user.id)
     await db.commit()
     response.status_code = status.HTTP_204_NO_CONTENT
+    clear_session_cookie(response)
+    clear_csrf_cookie(response)
 
 
 # ---------------------------------------------------------------------------
@@ -330,7 +347,7 @@ async def list_audit_events_endpoint(
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
 ) -> list[AuditEventResponse]:
-    events = await list_audit_events_svc(
+    events = await list_audit_events(
         db, user_id=auth.user.id, event_type=event_type, limit=limit, offset=offset
     )
     return [AuditEventResponse.model_validate(e) for e in events]

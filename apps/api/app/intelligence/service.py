@@ -245,7 +245,6 @@ class IntelligenceService:
         from sqlalchemy import select
 
         from app.db.models.habit import Habit, HabitLog
-        from app.db.models.user import UserSettings
 
         habits = list(
             (await db.execute(
@@ -259,9 +258,6 @@ class IntelligenceService:
             (await db.execute(
                 select(HabitLog).where(HabitLog.user_id == auth.user.id)
             )).scalars().all()
-        )
-        await db.execute(
-            select(UserSettings).where(UserSettings.user_id == auth.user.id)
         )
         now = datetime.now(UTC)
         consistency = habit_consistency(
@@ -407,6 +403,19 @@ class IntelligenceService:
         request: AskRequest,
     ) -> AskResponse:
         """Workspace Q&A via the selected provider, with deterministic fallback."""
+        if request.provider not in {"deterministic", "ollama", "cloud"}:
+            raise ValueError("Unsupported provider")
+        if request.provider != "deterministic":
+            from app.services.privacy import check_consent
+
+            if not await check_consent(
+                db, user_id=auth.user.id, provider=request.provider
+            ):
+                raise ValueError(
+                    f"Consent is required before using the {request.provider} provider"
+                )
+        if request.provider == "ollama" and self._ollama is None:
+            raise ValueError("Ollama is not configured for this account")
         provider = self._provider_for(request.provider, auth)
         context = await self._minimized_context(auth, db)
 
@@ -476,7 +485,6 @@ class IntelligenceService:
                 select(Milestone).join(Goal).where(
                     Goal.user_id == auth.user.id,
                     Goal.deleted_at.is_(None),
-                    Milestone.deleted_at.is_(None),
                 ).limit(50)
             )).scalars().all()
         )
@@ -533,6 +541,9 @@ class IntelligenceService:
         if request.provider != "ollama":
             raise ValueError("Only ollama provider is configurable in Phase 4")
 
+        # The Ollama adapter needs no credential. Keep only a non-reversible
+        # fingerprint so clients can detect configuration changes; never persist
+        # a plaintext provider secret.
         secret = new_provider_secret()
         secret_hash_value = secret_hash(secret)
 
@@ -549,7 +560,7 @@ class IntelligenceService:
                 provider=request.provider,
                 base_url=request.base_url,
                 model=request.model,
-                encrypted_secret=secret,
+                encrypted_secret=None,
                 secret_hash=secret_hash_value,
                 is_default=True,
                 enabled=True,
@@ -558,7 +569,7 @@ class IntelligenceService:
         else:
             existing.base_url = request.base_url
             existing.model = request.model
-            existing.encrypted_secret = secret
+            existing.encrypted_secret = None
             existing.secret_hash = secret_hash_value
             existing.enabled = True
             existing.is_default = True

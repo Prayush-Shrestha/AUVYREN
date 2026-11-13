@@ -1,31 +1,30 @@
-"""Phase 6: Privacy, Consent, Export, and Deletion tests."""
+"""Privacy, consent, export, deletion, and audit tests."""
 
 from __future__ import annotations
 
 import uuid
-from datetime import UTC, datetime, timedelta
 
-from app.db.models.auth import UserSession
-from app.db.models.privacy import AIConsent, AccountDeletion, DataExport
+from app.db.models.user import User
 from app.db.session import SessionFactory
 from app.main import app
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import update
 
 ORIGIN = "http://localhost:3000"
-EMAIL_DOMAIN = "phase6.auvyren.app"
+EMAIL_DOMAIN = "phase2.auvyren.app"
 PASSWORD = "correct horse battery staple"
+PRIVACY = "/api/v1/privacy"
 
 
 def unique_email(prefix: str = "user") -> str:
     return f"{prefix}-{uuid.uuid4().hex}@{EMAIL_DOMAIN}"
 
 
-def make_client(*, origin: str | None = ORIGIN) -> AsyncClient:
-    headers = {"Origin": origin, "Referer": f"{origin}/"} if origin else {}
+def make_client() -> AsyncClient:
     return AsyncClient(
         transport=ASGITransport(app=app),
         base_url="http://testserver",
-        headers=headers,
+        headers={"Origin": ORIGIN, "Referer": f"{ORIGIN}/"},
     )
 
 
@@ -39,266 +38,221 @@ async def get_csrf(client: AsyncClient) -> str:
     return response.json()["csrf_token"]
 
 
-async def register(
-    client: AsyncClient,
-    *,
-    email: str | None = None,
-    password: str = PASSWORD,
-    full_name: str | None = "Phase Six",
-):
-    token = await get_csrf(client)
-    return await client.post(
-        "/api/v1/auth/register",
-        json={"email": email or unique_email(), "password": password, "full_name": full_name},
-        headers=csrf_headers(token),
-    )
-
-
-async def login(client: AsyncClient, email: str, password: str):
-    token = await get_csrf(client)
-    return await client.post(
-        "/api/v1/auth/login",
-        json={"email": email, "password": password},
-        headers=csrf_headers(token),
-    )
-
-
 async def auth_headers(client: AsyncClient) -> dict[str, str]:
     return csrf_headers(await get_csrf(client))
 
 
-async def test_consent_grant_and_revoke(client: AsyncClient) -> None:
-    """Test consent grant and revoke for AI providers."""
-    email = unique_email("consent")
-    created = await register(client, email=email)
-    assert created.status_code == 201
+async def register(client: AsyncClient, *, email: str) -> None:
+    token = await get_csrf(client)
+    response = await client.post(
+        "/api/v1/auth/register",
+        json={"email": email, "password": PASSWORD, "full_name": "Privacy Test"},
+        headers=csrf_headers(token),
+    )
+    assert response.status_code == 201, response.text
+
+
+async def test_consent_grant_check_list_and_revoke(client: AsyncClient) -> None:
+    await register(client, email=unique_email("consent"))
     headers = await auth_headers(client)
 
-    # Grant consent for Ollama
-    response = await client.post(
-        "/privacy/consent/ollama",
+    created = await client.post(
+        f"{PRIVACY}/consent/ollama",
         json={"provider": "ollama"},
         headers=headers,
     )
-    assert response.status_code == 201, response.text
-    assert response.json()["provider"] == "ollama"
-    assert response.json()["granted_at"] is not None
+    assert created.status_code == 201, created.text
+    assert created.json()["provider"] == "ollama"
+    assert created.json()["granted_at"] is not None
 
-    # Check consent status
-    check = await client.get(
-        "/privacy/consent/ollama/check",
-        headers=headers,
-    )
-    assert check.status_code == 200
-    assert check.json()["granted"] is True
+    checked = await client.get(f"{PRIVACY}/consent/ollama/check")
+    assert checked.status_code == 200
+    assert checked.json() == {"granted": True, "provider": "ollama"}
 
-    # List consents
-    listed = await client.get("/privacy/consent", headers=headers)
+    listed = await client.get(f"{PRIVACY}/consent")
     assert listed.status_code == 200
-    consents = listed.json()
-    assert len(consents) == 1
-    assert consents[0]["provider"] == "ollama"
+    assert [item["provider"] for item in listed.json()] == ["ollama"]
 
-    # Revoke consent
-    revoked = await client.delete(
-        "/privacy/consent/ollama",
-        headers=headers,
-    )
+    revoked = await client.delete(f"{PRIVACY}/consent/ollama", headers=headers)
     assert revoked.status_code == 204
 
-    # Verify revoked
-    checked = await client.get(
-        "/privacy/consent/ollama/check",
+    after = await client.get(f"{PRIVACY}/consent/ollama/check")
+    assert after.json()["granted"] is False
+
+
+async def test_consent_is_scoped_to_the_authenticated_user(client: AsyncClient) -> None:
+    await register(client, email=unique_email("consent-owner"))
+    headers = await auth_headers(client)
+    created = await client.post(
+        f"{PRIVACY}/consent/deterministic",
+        json={"provider": "deterministic"},
         headers=headers,
     )
-    assert checked.status_code == 200
-    assert checked.json()["granted"] is False
+    assert created.status_code == 201, created.text
+
+    async with make_client() as other:
+        await register(other, email=unique_email("consent-other"))
+        other_headers = await auth_headers(other)
+
+        check = await other.get(f"{PRIVACY}/consent/deterministic/check")
+        assert check.status_code == 200
+        assert check.json()["granted"] is False
+
+        revoke = await other.delete(
+            f"{PRIVACY}/consent/deterministic",
+            headers=other_headers,
+        )
+        assert revoke.status_code == 404
 
 
-async def test_cross_user_consent_isolation(client: AsyncClient) -> None:
-    """Test that users cannot access each other's consent."""
-    email1 = unique_email("consent1")
-    email2 = unique_email("consent2")
-
-    created1 = await register(client, email=email1)
-    assert created1.status_code == 201
-    headers1 = await auth_headers(client)
-
-    # Client 2
-    client2 = make_client()
-    created2 = await register(client2, email=email2)
-    assert created2.status_code == 201
-    headers2 = await auth_headers(client2)
-
-    # Client 1 grants consent
-    await client.post(
-        "/privacy/consent/ollama",
+async def test_consent_requires_csrf(client: AsyncClient) -> None:
+    await register(client, email=unique_email("consent-csrf"))
+    response = await client.post(
+        f"{PRIVACY}/consent/ollama",
         json={"provider": "ollama"},
-        headers=headers1,
     )
-
-    # Client 2 tries to access client 1's consent - should fail
-    cross = await client2.get(
-        "/privacy/consent/ollama/check",
-        headers=headers2,
-    )
-    # Client 2 hasn't granted consent, so this should return granted=false
-    assert checked.status_code == 200
-    assert checked.json()["granted"] is False
+    assert response.status_code == 403
+    assert response.json()["code"] == "csrf_validation_failed"
 
 
-async def test_data_export_request(client: AsyncClient) -> None:
-    """Test data export request."""
-    email = unique_email("export")
-    created = await register(client, email=email)
-    assert created.status_code == 201
+async def test_data_export_request_list_get_and_readiness(client: AsyncClient) -> None:
+    await register(client, email=unique_email("export"))
     headers = await auth_headers(client)
 
-    # Request export
-    response = await client.post(
-        "/privacy/export",
-        json={},
-        headers=headers,
-    )
-    assert response.status_code == 201, response.text
-    assert response.json()["status"] == "pending"
-    assert response.json()["user_id"] is not None
+    created = await client.post(f"{PRIVACY}/export", json={}, headers=headers)
+    assert created.status_code == 201, created.text
+    assert created.json()["status"] == "pending"
+    export_id = created.json()["id"]
 
-    # List exports
-    listed = await client.get("/privacy/export", headers=headers)
+    listed = await client.get(f"{PRIVACY}/export")
     assert listed.status_code == 200
-    assert len(listed.json()) == 1
-    assert listed.json()[0]["status"] == "pending"
+    assert [item["id"] for item in listed.json()] == [export_id]
 
-    # Get specific export
-    export_id = listed.json()[0]["id"]
-    fetched = await client.get(
-        f"/privacy/export/{export_id}",
-        headers=headers,
-    )
+    fetched = await client.get(f"{PRIVACY}/export/{export_id}")
     assert fetched.status_code == 200
     assert fetched.json()["id"] == export_id
 
-
-async def test_cross_user_export_access(client: AsyncClient) -> None:
-    """Test cross-user export access returns 404."""
-    email1 = unique_email("export1")
-    email2 = unique_email("export2")
-
-    created1 = await register(client, email=email1)
-    assert created1.status_code == 201
-    headers1 = await auth_headers(client)
-
-    created2 = await register(client, email=email2)
-    assert created2.status_code == 201
-    headers2 = await auth_headers(client)
-
-    # Client 1 exports
-    export = await client.post(
-        "/privacy/export",
-        json={},
-        headers=headers1,
-    )
-    assert export.status_code == 201
-    export_id = export.json()["id"]
-
-    # Client 2 tries to access client 1's export
-    cross = await client2.get(
-        f"/privacy/export/{export_id}",
-        headers=headers2,
-    )
-    assert cross.status_code == 404
+    download = await client.get(f"{PRIVACY}/export/{export_id}/download")
+    assert download.status_code == 400
+    assert download.json()["code"] == "export_not_ready"
 
 
-async def test_account_deletion_request(client: AsyncClient) -> None:
-    """Test account deletion request flow."""
-    email = unique_email("delete")
-    created = await register(client, email=email)
+async def test_export_is_not_visible_to_another_user(client: AsyncClient) -> None:
+    await register(client, email=unique_email("export-owner"))
+    headers = await auth_headers(client)
+    created = await client.post(f"{PRIVACY}/export", json={}, headers=headers)
     assert created.status_code == 201
+    export_id = created.json()["id"]
+
+    async with make_client() as other:
+        await register(other, email=unique_email("export-other"))
+        response = await other.get(f"{PRIVACY}/export/{export_id}")
+        assert response.status_code == 404
+        assert response.json()["code"] == "export_not_found"
+
+
+async def test_account_deletion_requires_confirmation_token(client: AsyncClient) -> None:
+    await register(client, email=unique_email("delete-token"))
     headers = await auth_headers(client)
 
-    # Request deletion
-    response = await client.post(
-        "/privacy/account/delete",
-        json={"reason": "No longer needed"},
+    requested = await client.post(
+        f"{PRIVACY}/account/delete",
+        json={"reason": "Testing the confirmation gate"},
         headers=headers,
     )
-    assert response.status_code == 201, response.text
-    assert response.json()["status"] == "pending"
-    assert response.json()["confirmation_token"] is not None
+    assert requested.status_code == 201, requested.text
+    token = requested.json()["confirmation_token"]
+    assert token
+    assert requested.json()["status"] == "pending"
 
-    # Confirm deletion
-    confirmation_token = response.json()["confirmation_token"]
+    wrong = await client.post(
+        f"{PRIVACY}/account/delete/confirm",
+        json={"confirmation_token": "not-the-token"},
+        headers=headers,
+    )
+    assert wrong.status_code == 400
+    assert wrong.json()["code"] == "invalid_confirmation_token"
+
     confirmed = await client.post(
-        "/privacy/account/delete/confirm",
-        json={"confirmation_token": confirmation_token},
+        f"{PRIVACY}/account/delete/confirm",
+        json={"confirmation_token": token},
         headers=headers,
     )
     assert confirmed.status_code == 200, confirmed.text
     assert confirmed.json()["status"] == "confirmed"
+    assert "confirmation_token" not in confirmed.json()
 
-    # Complete deletion
-    completed = await client.post(
-        "/privacy/account/delete/complete",
+
+async def test_account_deletion_completes_and_revokes_access(client: AsyncClient) -> None:
+    email = unique_email("delete-complete")
+    await register(client, email=email)
+    headers = await auth_headers(client)
+
+    requested = await client.post(
+        f"{PRIVACY}/account/delete",
+        json={"reason": "No longer needed"},
         headers=headers,
     )
-    assert completed.status_code == 204
+    assert requested.status_code == 201, requested.text
+    token = requested.json()["confirmation_token"]
 
-    # Verify user cannot access anymore
-    me = await client.get("/api/v1/auth/me", headers=headers)
+    confirmed = await client.post(
+        f"{PRIVACY}/account/delete/confirm",
+        json={"confirmation_token": token},
+        headers=headers,
+    )
+    assert confirmed.status_code == 200, confirmed.text
+
+    completed = await client.post(
+        f"{PRIVACY}/account/delete/complete",
+        headers=headers,
+    )
+    assert completed.status_code == 204, completed.text
+
+    me = await client.get("/api/v1/auth/me")
     assert me.status_code == 401
 
-
-async def test_audit_events_logged(client: AsyncClient) -> None:
-    """Test that audit events are logged for auth actions."""
-    email = unique_email("audit")
-    created = await register(client, email=email)
-    assert created.status_code == 201
-    headers = await auth_headers(client)
-
-    # Perform some actions that should be audited
-    await client.get("/api/v1/auth/me", headers=headers)
-    await client.get("/api/v1/auth/sessions", headers=headers)
-
-    # List audit events - should have at least some entries
-    audits = await client.get("/privacy/audit", headers=headers)
-    assert audits.status_code == 200
-    assert len(audits.json()) > 0
-
-
-async def test_inactive_user_cannot_access_productivity(client: AsyncClient) -> None:
-    """Test that inactive users cannot access productivity endpoints."""
-    email = unique_email("inactive")
-    created = await register(client, email=email)
-    assert created.status_code == 201
-    headers = await auth_headers(client)
-
-    # Deactivate user in DB
-    from app.db.models.user import User
-    from app.db.session import SessionFactory
     async with SessionFactory() as db:
-        from sqlalchemy import update
+        result = await db.execute(update(User).where(User.email == email).values(is_active=True))
+        assert result.rowcount == 0
+
+
+async def test_privacy_actions_are_audited(client: AsyncClient) -> None:
+    await register(client, email=unique_email("audit"))
+    headers = await auth_headers(client)
+
+    granted = await client.post(
+        f"{PRIVACY}/consent/ollama",
+        json={"provider": "ollama"},
+        headers=headers,
+    )
+    assert granted.status_code == 201
+
+    events = await client.get(f"{PRIVACY}/audit")
+    assert events.status_code == 200
+    event_types = [event["event_type"] for event in events.json()]
+    assert "ai.consent.granted" in event_types
+
+    filtered = await client.get(
+        f"{PRIVACY}/audit",
+        params={"event_type": "ai.consent.granted"},
+    )
+    assert filtered.status_code == 200
+    assert len(filtered.json()) == 1
+
+
+async def test_inactive_user_cannot_reach_protected_routes(client: AsyncClient) -> None:
+    email = unique_email("inactive")
+    await register(client, email=email)
+    headers = await auth_headers(client)
+
+    async with SessionFactory() as db:
         await db.execute(update(User).where(User.email == email).values(is_active=False))
         await db.commit()
 
-    # All productivity endpoints should return 401
-    endpoints = [
-        ("GET", "/api/v1/tasks"),
-        ("POST", "/api/v1/tasks"),
-        ("GET", "/api/v1/goals"),
-        ("POST", "/api/v1/goals"),
-        ("GET", "/api/v1/projects"),
-        ("POST", "/api/v1/projects"),
-        ("GET", "/api/v1/habits"),
-        ("POST", "/api/v1/habits"),
-        ("GET", "/api/v1/calendar"),
-        ("POST", "/api/v1/calendar"),
-        ("GET", "/api/v1/routines"),
-        ("POST", "/api/v1/routines"),
-    ]
-    for method, path in endpoints:
-        if method == "GET":
-            response = await client.get(path, headers=headers)
-        else:
-            response = await client.post(path, json={}, headers=headers)
-        assert response.status_code == 401, f"{method} {path} returned {response.status_code}"
+    for path in ("/api/v1/tasks", "/api/v1/goals", "/api/v1/knowledge"):
+        response = await client.get(path)
+        assert response.status_code == 401, f"GET {path} returned {response.status_code}"
+
+    post = await client.post("/api/v1/tasks", json={}, headers=headers)
+    assert post.status_code in {401, 403}

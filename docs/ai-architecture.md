@@ -1,8 +1,10 @@
 # AI Architecture: Quiet Intelligence
 
-**Status:** Design established in Phase 0. The deterministic engine, Ollama integration and
-provider abstraction are implemented in Phase 4; cloud AI, consent controls, usage limits and
-sync arrive in Phase 6. No AI feature is shipped yet.
+**Status:** The deterministic engine, optional Ollama integration, provider abstraction and
+consent controls are implemented. The cloud adapter is deliberately a refusing stub: no
+outbound cloud AI call is made, no provider secret is accepted, and the
+`ai_provider_configs.encrypted_secret` column is always `NULL`. `ai_usage_logs` exists in the
+schema but is not written because cloud calls are disabled. Sync is not implemented.
 
 Auvyren does not begin with a chatbot. It begins with an explainable productivity engine that
 helps the user decide what matters, then optionally adds language models where they genuinely
@@ -188,7 +190,10 @@ consent, use a server-side cloud provider in Phase 6.
 The UI must clearly display **Local processing** for Ollama and **Cloud processing** for hosted
 providers. If a cloud fallback would be used, ask first. There is no implicit fallback.
 
-## 5. Cloud AI (Phase 6)
+## 5. Cloud AI (designed; disabled)
+
+> None of this section is implemented yet. It is the design contract for a future phase. The
+> current cloud adapter refuses every call, and no cloud key is solicited or stored.
 
 - Server-side adapter, preferably OpenAI-compatible so providers are replaceable.
 - API keys encrypted at rest with a dedicated key, never sent to the browser.

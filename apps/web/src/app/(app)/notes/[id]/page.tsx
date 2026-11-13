@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 
-import { getServerUser } from "@/lib/api/server";
+import { getServerUser, serverApiRequest } from "@/lib/api/server";
 import { firstName } from "@/features/auth/display";
-import { getNoteRequest } from "@/lib/api/intelligence";
+import type { NoteResponse } from "@/lib/api/types";
 
 export const metadata: Metadata = {
   title: "Note",
@@ -24,7 +24,9 @@ export default async function NotePage({
 
   let note;
   try {
-    note = await getNoteRequest(noteId);
+    note = await serverApiRequest<NoteResponse>(
+      `/knowledge/${encodeURIComponent(noteId)}`,
+    );
   } catch {
     note = null;
   }

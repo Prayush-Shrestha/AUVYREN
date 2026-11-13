@@ -1,52 +1,52 @@
-# Stage 1: Build the web application
-FROM node:22-slim AS builder
+# Install the workspace dependencies once.
+FROM node:22-slim AS deps
+
+ENV NEXT_TELEMETRY_DISABLED=1
 
 WORKDIR /app
 
-# Install build dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    python3 \
-    make \
-    g++ \
-    && rm -rf /var/lib/apt/lists/*
-
-# Copy package files
-COPY apps/web/package.json apps/web/package-lock.json ./
+COPY package.json package-lock.json ./
+COPY apps/web/package.json ./apps/web/package.json
 RUN npm ci
 
-# Copy source code
-COPY apps/web ./apps/web
-COPY apps/api ./apps/api
+# Build the standalone Next.js server.
+FROM node:22-slim AS builder
 
-# Build the Next.js application
-RUN npm run build --workspace @auvyren/web
-
-# Stage 2: Runtime
-FROM node:22-slim AS runner
+ENV NEXT_TELEMETRY_DISABLED=1
 
 WORKDIR /app
 
-# Install runtime dependencies only
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl \
-    && rm -rf /var/lib/apt/lists/*
+COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app/apps ./apps
+COPY package.json package-lock.json ./
+COPY apps/web ./apps/web
 
-# Copy built application
-COPY --from=builder /app/apps/web/.next ./apps/web/.next
-COPY --from=builder /app/apps/web/public ./apps/web/public
-COPY --from=builder /app/apps/web/package.json ./apps/web/package.json
-COPY --from=builder /app/node_modules ./node_modules
+# NEXT_PUBLIC_* values are inlined at build time. Pass the browser-facing API
+# URL as a build argument when the deployment origin differs from localhost.
+ARG NEXT_PUBLIC_API_BASE_URL=http://localhost:8000/api/v1
+ENV NEXT_PUBLIC_API_BASE_URL=${NEXT_PUBLIC_API_BASE_URL}
+RUN npm run build --workspace @auvyren/web
 
-# Create non-root user
-RUN groupadd -r auvyren && useradd -r -g auvyren auvyren
+FROM node:22-slim AS runner
+
+ENV NODE_ENV=production \
+    NEXT_TELEMETRY_DISABLED=1 \
+    HOSTNAME=0.0.0.0 \
+    PORT=3000
+
+WORKDIR /app
+
+RUN groupadd --system auvyren \
+    && useradd --system --gid auvyren --no-create-home auvyren
+
+COPY --from=builder /app/apps/web/.next/standalone ./
+COPY --from=builder /app/apps/web/.next/static ./apps/web/.next/static
+
 USER auvyren
 
-# Expose web port
 EXPOSE 3000
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:3000/ || exit 1
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD node -e "fetch('http://127.0.0.1:3000/').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"
 
-# Run the web server
-CMD ["npm", "run", "start", "--workspace", "@auvyren/web"]
+CMD ["node", "apps/web/server.js"]

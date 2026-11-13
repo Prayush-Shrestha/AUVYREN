@@ -4,8 +4,11 @@ from __future__ import annotations
 
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+ProviderName = Literal["deterministic", "ollama", "cloud"]
 
 
 class _StrictModel(BaseModel):
@@ -13,7 +16,7 @@ class _StrictModel(BaseModel):
 
 
 class AIConsentCreate(_StrictModel):
-    provider: str = Field(min_length=1, max_length=32)
+    provider: ProviderName
     policy_version: str = Field(default="1.0", max_length=32)
 
 
@@ -31,6 +34,11 @@ class AIConsentResponse(BaseModel):
     policy_version: str
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class ConsentCheckResponse(BaseModel):
+    granted: bool
+    provider: str
 
 
 class DataExportCreate(_StrictModel):
@@ -56,11 +64,14 @@ class AccountDeletionCreate(_StrictModel):
     reason: str | None = Field(default=None, max_length=1000)
 
 
+class AccountDeletionConfirmRequest(_StrictModel):
+    confirmation_token: str = Field(min_length=1, max_length=255)
+
+
 class AccountDeletionResponse(BaseModel):
     id: uuid.UUID
     user_id: uuid.UUID
     status: str
-    confirmation_token: str | None
     confirmed_at: datetime | None
     completed_at: datetime | None
     reason: str | None
@@ -68,6 +79,10 @@ class AccountDeletionResponse(BaseModel):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class AccountDeletionRequestResponse(AccountDeletionResponse):
+    confirmation_token: str
 
 
 class AuditEventResponse(BaseModel):

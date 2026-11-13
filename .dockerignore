@@ -1,0 +1,27 @@
+# Repository files that should never enter a Docker build context.
+.git
+.github
+.gitignore
+.editorconfig
+.env
+.env.*
+!.env.example
+
+node_modules
+**/node_modules
+**/.next
+**/out
+**/coverage
+**/test-results
+**/playwright-report
+
+**/__pycache__
+**/*.py[cod]
+**/.venv
+**/.pytest_cache
+**/.ruff_cache
+**/*.egg-info
+
+backups
+docs
+*.log

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
 import {
+  BookOpen,
   CalendarDays,
   FolderKanban,
   LayoutDashboard,
@@ -47,9 +48,9 @@ const primaryNav: NavItem[] = [
   { label: "Projects", icon: FolderKanban, phase: "Phase 3" },
   { label: "Habits", icon: Repeat2, phase: "Phase 3" },
   { label: "Calendar", icon: CalendarDays, phase: "Phase 3" },
-  { label: "Intelligence", icon: Sparkles },
-  { label: "Notes", icon: NotebookPen, phase: "Phase 5" },
-  { label: "Intelligence", icon: Sparkles, phase: "Phase 4" },
+  { label: "Intelligence", href: "/intelligence", icon: Sparkles },
+  { label: "Notes", href: "/notes", icon: NotebookPen },
+  { label: "Knowledge", href: "/knowledge", icon: BookOpen },
 ];
 
 const secondaryNav: NavItem[] = [

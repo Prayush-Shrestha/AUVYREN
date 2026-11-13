@@ -6,13 +6,13 @@ with full ownership enforcement and audit trails.
 
 from __future__ import annotations
 
-import secrets
 import uuid
 from datetime import UTC, datetime
 
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.security import constant_time_equals, hash_token
 from app.db.models.privacy import (
     AccountDeletion,
     AIConsent,
@@ -162,11 +162,21 @@ async def request_account_deletion(
     *,
     user_id: uuid.UUID,
     payload: AccountDeletionCreate,
+    confirmation_token_hash: str,
 ) -> AccountDeletion:
+    # A new request supersedes any older pending request without deleting data.
+    await db.execute(
+        update(AccountDeletion)
+        .where(
+            AccountDeletion.user_id == user_id,
+            AccountDeletion.status == "pending",
+        )
+        .values(status="cancelled")
+    )
     deletion = AccountDeletion(
         user_id=user_id,
         status="pending",
-        confirmation_token=secrets.token_urlsafe(32),
+        confirmation_token=confirmation_token_hash,
         reason=payload.reason,
     )
     db.add(deletion)
@@ -179,20 +189,22 @@ async def confirm_account_deletion(
     db: AsyncSession,
     *,
     user_id: uuid.UUID,
-    deletion_id: uuid.UUID,
     confirmation_token: str,
 ) -> AccountDeletion | None:
     result = await db.execute(
         select(AccountDeletion).where(
-            AccountDeletion.id == deletion_id,
             AccountDeletion.user_id == user_id,
+            AccountDeletion.status == "pending",
         )
     )
     deletion = result.scalar_one_or_none()
-    if deletion is None:
+    if deletion is None or not deletion.confirmation_token:
         return None
-    if deletion.confirmation_token != confirmation_token:
+    if not constant_time_equals(
+        hash_token(confirmation_token), deletion.confirmation_token
+    ):
         return None
+    deletion.status = "confirmed"
     deletion.confirmed_at = utcnow()
     await db.flush()
     await db.refresh(deletion)
@@ -203,16 +215,35 @@ async def complete_account_deletion(
     db: AsyncSession,
     *,
     user_id: uuid.UUID,
-) -> None:
-    """Hard-delete the user and all associated data."""
+) -> bool:
+    """Hard-delete the user and all associated data after confirmation."""
     result = await db.execute(
-        select(User).where(User.id == user_id)
+        select(AccountDeletion).where(
+            AccountDeletion.user_id == user_id,
+            AccountDeletion.status == "confirmed",
+        )
     )
-    user = result.scalar_one_or_none()
-    if user is None:
-        return
-    await db.delete(user)
+    deletion = result.scalar_one_or_none()
+    if deletion is None:
+        return False
+
+    deletion.status = "completed"
+    deletion.completed_at = utcnow()
     await db.flush()
+
+    # Keep a user-independent audit trail after the account row is gone.
+    await record_audit_event(
+        db,
+        user_id=None,
+        event_type="account.deletion.completed",
+        details=f"Account {user_id} deleted after confirmation.",
+    )
+
+    user = await db.get(User, user_id)
+    if user is not None:
+        await db.delete(user)
+    await db.flush()
+    return True
 
 
 # ---------------------------------------------------------------------------

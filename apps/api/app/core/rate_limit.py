@@ -40,6 +40,11 @@ class RateLimiter:
         self._lock = asyncio.Lock()
 
     async def enforce(self, rules: Iterable[RateLimitRule]) -> None:
+        from app.core.config import get_settings
+
+        if not get_settings().rate_limit_enabled:
+            return
+
         rules = list(rules)
         now = time.monotonic()
 

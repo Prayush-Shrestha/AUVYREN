@@ -67,8 +67,8 @@ async def list_notes_endpoint(
     response: Response,
     auth: CurrentAuth = Depends(get_current_auth),
     db: AsyncSession = Depends(get_db_session),
-    kind: str | None = Query(None),
-    source_type: str | None = Query(None),
+    kind: NoteKind | None = Query(None),
+    source_type: NoteSourceType | None = Query(None),
     include_deleted: bool = Query(False),
     limit: int = Query(100, ge=1, le=500),
     offset: int = Query(0, ge=0),
@@ -76,8 +76,8 @@ async def list_notes_endpoint(
     notes = await list_notes(
         db,
         user_id=auth.user.id,
-        kind=NoteKind(kind) if kind else None,
-        source_type=NoteSourceType(source_type) if source_type else None,
+        kind=kind,
+        source_type=source_type,
         include_deleted=include_deleted,
         limit=limit,
         offset=offset,
@@ -200,6 +200,13 @@ async def create_note_link_endpoint(
             "invalid_link",
             title="Invalid link",
             detail="Source note ID must match the note in the URL.",
+        )
+    if payload.source_note_id == payload.target_note_id:
+        raise AppError(
+            400,
+            "invalid_link",
+            title="Invalid link",
+            detail="A note cannot link to itself.",
         )
 
     link = await create_note_link(

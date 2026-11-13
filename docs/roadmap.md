@@ -14,9 +14,9 @@ sequence, not an estimate of calendar time.
 | 3 | Personal Productivity System | **Complete** |
 | 4 | Auvyren Intelligence Engine | **Complete** |
 | 5 | Personal Intelligence & Knowledge Workspace | **Complete** |
-| 6 | Privacy, Synchronization & Cloud AI | **Complete — awaiting approval** |
-| 7 | Testing, Optimization & Deployment | Not started |
-| 8 | Mobile Application | Blocked by design |
+| 6 | Privacy, Synchronization & Cloud AI | **Complete — approved (partial; sync/cloud not delivered)** |
+| 7 | Testing, Optimization & Deployment | **Complete — awaiting approval** |
+| 8 | Mobile Application | Blocked until Phase 7 approval |
 
 ## Phase 0 — Product Foundation & Architecture
 
@@ -95,6 +95,10 @@ Dependencies: authenticated user context; Phase 1 components; Phase 0 schema.
 Exit criteria: every module persists via the API; authorization tests for each resource;
 dashboard derives from real records; no static/mock data; completion report.
 
+Delivered: the complete productivity API, PostgreSQL persistence and ownership tests. The
+workspace UI for tasks, goals, habits and calendar was not delivered in this phase; the
+dashboard remains an honest empty state rather than presenting sample data.
+
 ## Phase 4 — Auvyren Intelligence Engine
 
 **Objective:** Add explainable assistance without making AI mandatory.
@@ -147,6 +151,16 @@ Dependencies: stable Phase 3–5 data model; AI provider abstraction.
 Exit criteria: consent tests prove no cloud calls without permission; export/deletion verified;
 sync conflict policy documented and tested; cloud optional; completion report.
 
+Delivered: per-provider AI consent with revocation, consent enforcement before any provider
+call, an export request/status workflow (no artifact generation), account deletion with a
+hashed single-use token, audit events, and privacy tests against PostgreSQL.
+
+Not delivered: sync (no device/change-log tables or endpoints), cloud AI (the adapter is a
+refusing stub), hybrid mode, usage limits/cost tracking (`ai_usage_logs` exists but is not
+written), and encrypted cloud keys (`encrypted_secret` is reserved but unused). The Phase 6
+completion report describes intended scope and overstates these items; this roadmap and the
+implementation checklist reflect the implemented reality.
+
 ## Phase 7 — Testing, Optimization & Deployment
 
 **Objective:** Make Auvyren safe and operable for real users.
@@ -162,6 +176,22 @@ Scope:
 Dependencies: all web product phases.
 Exit criteria: CI green, production deployment healthy, restore drill passed, security checklist
 complete, no critical accessibility issues, completion report.
+
+Delivered:
+
+- Vitest/Testing Library component and client tests; PostgreSQL-backed API suites; Playwright
+  desktop/mobile journeys covering auth, notes, knowledge, settings, CSP and accessibility.
+- Performance budgets, browser measurements and a query/index review with trigram indexes.
+- Nonce-based CSP, security hardening, dependency audits and rate-limit coverage.
+- Production-mode Compose stack with Caddy TLS, standalone Next.js, one-worker FastAPI,
+  PostgreSQL, Mailpit, log rotation, health/alert script and a GitHub Actions CI workflow.
+- Checksummed backup/restore tooling and a live restore drill.
+- Deployment runbook, incident notes and performance/accessibility/security/backup reports.
+
+Exit criteria: local CI-equivalent checks are green; the production-mode stack is healthy and
+the restore drill passed; the security checklist and axe audit are complete with no critical
+findings; the completion report is written. Remote GitHub Actions verification requires the
+first push. **Met pending approval.**
 
 ## Phase 8 — Mobile Application (future)
 

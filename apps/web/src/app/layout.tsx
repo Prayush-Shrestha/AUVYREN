@@ -44,7 +44,7 @@ export default async function RootLayout({
   const initialUser = await getServerUser().catch(() => null);
 
   return (
-    <html lang="en">
+    <html lang="en" data-scroll-behavior="smooth">
       <body className="min-h-dvh bg-background text-foreground antialiased">
         <a
           href="#main-content"

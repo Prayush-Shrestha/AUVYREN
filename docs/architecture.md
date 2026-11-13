@@ -1,7 +1,8 @@
 # Auvyren Architecture
 
-**Status:** Phase 1 brand and UI foundation implemented. Later-phase modules are design
-intent, not shipped functionality.
+**Status:** Phase 7 complete — awaiting approval. Authentication, productivity APIs,
+intelligence, knowledge, privacy controls, a production Compose stack and the operational
+runbook are implemented. Productivity UI screens and mobile remain future work.
 
 ## 1. Product constraints
 
@@ -215,7 +216,8 @@ Rules:
 - A database trigger maintains `updated_at` even for raw SQL writes.
 - Soft deletion is used for tasks, projects, goals and calendar events so user content can
   be recovered. Reads must filter `deleted_at IS NULL`.
-- Account deletion cascades through all owned content; export happens before deletion in Phase 6.
+- Account deletion cascades through all owned content. Export artifact generation is not
+  implemented; deletion is independent of export.
 - Enumerations are stored as constrained lowercase strings rather than native PostgreSQL
   enums, making additive changes cheaper.
 
@@ -248,8 +250,8 @@ Local-first in Auvyren means:
 2. Deterministic planning/insights run on the Auvyren server without external AI.
 3. Local AI (Ollama) is optional and explicitly configured.
 4. Cloud AI never receives personal context without explicit consent and is never required.
-5. Offline browsing/editing is a Phase 6 capability. Phase 0 is **not** offline-capable;
-   this is stated explicitly rather than implied.
+5. Offline browsing/editing is **not implemented**. It is a prerequisite for the mobile
+   phase, not a current capability; this is stated explicitly rather than implied.
 
 A browser cannot automatically reach a user's localhost Ollama. Two supported deployment
 models are documented in [AI architecture](ai-architecture.md): self-hosted Auvyren (server
@@ -276,7 +278,7 @@ can reach a local runtime) and a future desktop companion for hosted Auvyren.
 | Cross-user data leaks | Enforce user scoping in services; integration tests for IDOR in Phase 7 |
 | AI context leakage | Server-side consent, local-only default, redaction/minimization, provider audit |
 | Schema churn | Small phased Alembic migrations with review and rollback path |
-| Offline conflicts | Versioned writes and explicit sync conflict policy in Phase 6, not ad hoc LWW |
+| Offline conflicts | Not implemented; require versioned writes and an explicit sync conflict policy before the mobile phase, not ad hoc LWW |
 | Token/session theft | HttpOnly cookies, HTTPS, CSRF, rotation, revocation and security events |
 | Hosted app cannot reach local Ollama | Clear self-hosted vs desktop-companion paths; never fake local processing |
 | Scope creep | Phase gate, checklist and explicit approval before the next phase |

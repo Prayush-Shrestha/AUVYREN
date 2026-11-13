@@ -50,7 +50,7 @@ export function AccountMenu({ className }: { className?: string }) {
       <DropdownMenuTrigger asChild>
         <button
           type="button"
-          aria-label={`Account menu for ${displayName(user)}`}
+          aria-label={`${initials(user)} — account menu for ${displayName(user)}`}
           className={cn(
             "flex size-9 items-center justify-center rounded-full border border-border bg-surface text-[11px] font-semibold tracking-[0.04em] text-accent transition-colors hover:border-border-strong hover:bg-surface-elevated focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent",
             className,

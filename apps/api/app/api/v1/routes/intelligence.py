@@ -43,7 +43,7 @@ router = APIRouter(
 )
 
 
-def _build_service(
+async def _build_service(
     *,
     db: AsyncSession,
     auth: CurrentAuth | None,
@@ -57,7 +57,7 @@ def _build_service(
     cloud = CloudAIProvider()
     ollama: OllamaProvider | None = None
 
-    result = db.execute(
+    result = await db.execute(
         select(AIProviderConfig).where(
             AIProviderConfig.user_id == auth.user.id,
             AIProviderConfig.provider == "ollama",
@@ -88,7 +88,7 @@ async def prioritize(
     auth: CurrentAuth = Depends(get_current_auth),
     db: AsyncSession = Depends(get_db_session),
 ) -> TaskPrioritizeResponse:
-    service = _build_service(db=db, auth=auth)
+    service = await _build_service(db=db, auth=auth)
     return await service.prioritize_tasks(auth, db)
 
 
@@ -102,7 +102,7 @@ async def daily_plan(
     auth: CurrentAuth = Depends(get_current_auth),
     db: AsyncSession = Depends(get_db_session),
 ) -> BriefingResponse:
-    service = _build_service(db=db, auth=auth)
+    service = await _build_service(db=db, auth=auth)
     return await service.briefing(auth, db)
 
 
@@ -116,7 +116,7 @@ async def deadlines(
     auth: CurrentAuth = Depends(get_current_auth),
     db: AsyncSession = Depends(get_db_session),
 ) -> DeadlineAwarenessResponse:
-    service = _build_service(db=db, auth=auth)
+    service = await _build_service(db=db, auth=auth)
     return await service.deadline_awareness(auth, db)
 
 
@@ -130,7 +130,7 @@ async def goals_progress(
     auth: CurrentAuth = Depends(get_current_auth),
     db: AsyncSession = Depends(get_db_session),
 ) -> list[GoalProgressResponse]:
-    service = _build_service(db=db, auth=auth)
+    service = await _build_service(db=db, auth=auth)
     return await service.goal_progress(auth, db)
 
 
@@ -144,7 +144,7 @@ async def habits_consistency(
     auth: CurrentAuth = Depends(get_current_auth),
     db: AsyncSession = Depends(get_db_session),
 ) -> list[HabitConsistencyResponse]:
-    service = _build_service(db=db, auth=auth)
+    service = await _build_service(db=db, auth=auth)
     return await service.habit_consistency(auth, db)
 
 
@@ -158,7 +158,7 @@ async def patterns(
     auth: CurrentAuth = Depends(get_current_auth),
     db: AsyncSession = Depends(get_db_session),
 ) -> list[PatternResponse]:
-    service = _build_service(db=db, auth=auth)
+    service = await _build_service(db=db, auth=auth)
     return await service.patterns(auth, db)
 
 
@@ -172,7 +172,7 @@ async def briefing(
     auth: CurrentAuth = Depends(get_current_auth),
     db: AsyncSession = Depends(get_db_session),
 ) -> BriefingResponse:
-    service = _build_service(db=db, auth=auth)
+    service = await _build_service(db=db, auth=auth)
     return await service.briefing(auth, db)
 
 
@@ -186,7 +186,7 @@ async def weekly_review(
     auth: CurrentAuth = Depends(get_current_auth),
     db: AsyncSession = Depends(get_db_session),
 ) -> WeeklyReviewDraftResponse:
-    service = _build_service(db=db, auth=auth)
+    service = await _build_service(db=db, auth=auth)
     return await service.weekly_review(auth, db)
 
 
@@ -201,8 +201,16 @@ async def ask(
     auth: CurrentAuth = Depends(get_current_auth),
     db: AsyncSession = Depends(get_db_session),
 ) -> AskResponse:
-    service = _build_service(db=db, auth=auth)
-    return await service.ask(auth, db, payload)
+    service = await _build_service(db=db, auth=auth)
+    try:
+        return await service.ask(auth, db, payload)
+    except ValueError as exc:
+        raise AppError(
+            400,
+            "invalid_provider",
+            title="Provider unavailable",
+            detail=str(exc),
+        ) from exc
 
 
 @router.get(
@@ -215,7 +223,7 @@ async def list_providers(
     auth: CurrentAuth = Depends(get_current_auth),
     db: AsyncSession = Depends(get_db_session),
 ) -> list[ProviderInfoResponse]:
-    service = _build_service(db=db, auth=auth)
+    service = await _build_service(db=db, auth=auth)
     return await service.list_providers(auth, db)
 
 
@@ -231,8 +239,16 @@ async def configure_provider(
     auth: CurrentAuth = Depends(get_current_auth),
     db: AsyncSession = Depends(get_db_session),
 ) -> ProviderConfigureResponse:
-    service = _build_service(db=db, auth=auth)
-    return await service.configure_provider(auth, db, payload)
+    service = await _build_service(db=db, auth=auth)
+    try:
+        return await service.configure_provider(auth, db, payload)
+    except ValueError as exc:
+        raise AppError(
+            400,
+            "invalid_provider",
+            title="Provider unavailable",
+            detail=str(exc),
+        ) from exc
 
 
 @router.get(
@@ -245,7 +261,7 @@ async def provider_secret(
     auth: CurrentAuth = Depends(get_current_auth),
     db: AsyncSession = Depends(get_db_session),
 ) -> ProviderSecretResponse:
-    service = _build_service(db=db, auth=auth)
+    service = await _build_service(db=db, auth=auth)
     return await service.provider_secret(auth, db)
 
 

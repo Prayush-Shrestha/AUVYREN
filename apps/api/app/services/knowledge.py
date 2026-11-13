@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import UTC, datetime
 
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,7 +17,7 @@ from app.schemas.knowledge import (
 
 
 def utcnow() -> datetime:
-    return datetime.now(__import__("datetime").UTC)
+    return datetime.now(UTC)
 
 
 async def get_note_by_id(
@@ -45,7 +45,7 @@ async def create_note(
         content=payload.content,
         kind=payload.kind,
         source_type=payload.source_type,
-        source_id=payload.source_id,
+        source_id=str(payload.source_id) if payload.source_id else None,
         tags=payload.tags,
     )
     db.add(note)
@@ -66,6 +66,8 @@ async def update_note(
         return None
 
     data = payload.model_dump(exclude_unset=True)
+    if data.get("source_id") is not None:
+        data["source_id"] = str(data["source_id"])
     for field, value in data.items():
         setattr(note, field, value)
 
@@ -201,11 +203,26 @@ async def create_note_link(
     target_note_id: uuid.UUID,
     link_type: str,
 ) -> NoteLink | None:
+    if source_note_id == target_note_id:
+        return None
+
     # Verify both notes belong to the user
     source = await get_note_by_id(db, user_id=user_id, note_id=source_note_id)
     target = await get_note_by_id(db, user_id=user_id, note_id=target_note_id)
     if source is None or target is None:
         return None
+
+    # Linking twice is idempotent; the database enforces the unique edge.
+    existing = await db.execute(
+        select(NoteLink).where(
+            NoteLink.source_note_id == source_note_id,
+            NoteLink.target_note_id == target_note_id,
+            NoteLink.link_type == link_type,
+        )
+    )
+    found = existing.scalar_one_or_none()
+    if found is not None:
+        return found
 
     link = NoteLink(
         source_note_id=source_note_id,
@@ -244,11 +261,13 @@ async def delete_note_link(
     user_id: uuid.UUID,
     link_id: uuid.UUID,
 ) -> NoteLink | None:
-    # Verify the note belongs to the user
+    # A link is visible only when both endpoints belong to the requesting user.
+    user_note_ids = select(Note.id).where(Note.user_id == user_id)
     result = await db.execute(
-        select(NoteLink).join(Note).where(
+        select(NoteLink).where(
             NoteLink.id == link_id,
-            Note.user_id == user_id,
+            NoteLink.source_note_id.in_(user_note_ids),
+            NoteLink.target_note_id.in_(user_note_ids),
         )
     )
     link = result.scalar_one_or_none()

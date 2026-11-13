@@ -129,6 +129,10 @@
 
 ## Phase 3 — Personal Productivity System
 
+**Status:** The backend API and PostgreSQL persistence were delivered and tested. The
+dashboard and dedicated productivity screens were not built; UI items below remain unchecked.
+See the delivered note in the roadmap.
+
 ### Dashboard
 
 - [ ] Today's priorities from real tasks
@@ -186,12 +190,12 @@
 
 ### Phase 3 exit gate
 
-- [ ] No module relies on mock data
-- [ ] Every resource enforces ownership
-- [ ] API and UI tests pass
-- [ ] Responsive review
-- [ ] Documentation updated
-- [ ] Completion report and approval gate
+- [x] No module relies on mock data
+- [x] Every resource enforces ownership (API)
+- [x] API tests pass (15 productivity integration tests)
+- [ ] Responsive review — no productivity UI exists
+- [x] Documentation updated
+- [ ] Completion report — no Phase 3 report was written
 
 ## Phase 4 — Auvyren Intelligence Engine
 
@@ -226,41 +230,46 @@
 
 ## Phase 6 — Privacy, Synchronization & Cloud AI
 
-- [x] User-controlled AI permissions
-- [x] Encrypted cloud provider keys
+**Status:** Consent, export request tracking, deletion and audit are delivered. Sync, cloud
+transport, usage limits and key encryption are not.
+
+- [x] User-controlled AI permissions (per-provider consent API and UI)
+- [ ] Encrypted cloud provider keys — column reserved, no encryption path implemented
+  because cloud AI is disabled
 - [x] Local/cloud processing indicators
-- [x] Cloud provider adapter with server-side calls
+- [ ] Cloud provider adapter with server-side calls — adapter is a refusing stub
 - [x] Consent before context transmission
-- [x] Usage limits and cost tracking
-- [x] Local-only and hybrid modes
-- [x] Data export
+- [ ] Usage limits and cost tracking — `ai_usage_logs` table exists but is not written
+- [x] Local-only mode
+- [ ] Hybrid mode — cannot be exercised while cloud AI is disabled
+- ◐ Data export — request/list/status only; no artifact generation or real download
 - [x] Account deletion with re-authentication
-- [x] Sync support and conflict handling
-- [x] Sync status and offline-friendly workflows
+- [ ] Sync support and conflict handling — not implemented
+- [ ] Sync status and offline-friendly workflows — not implemented
 - [x] Audit/security events
 - [x] Privacy and permission tests
 - [x] Documentation and completion report
 
 ## Phase 7 — Testing, Optimization & Deployment
 
-- [ ] Frontend component tests
-- [ ] Backend API tests
-- [ ] Authentication and permission tests
-- [ ] Database tests
-- [ ] AI provider tests (mocked/isolated)
-- [ ] Responsive UI tests
-- [ ] End-to-end workflows
-- [ ] Performance budgets and page optimization
-- [ ] Query/index review
-- [ ] Accessibility audit
-- [ ] Security review and CSP
-- [ ] Dependency audit
-- [ ] Next.js deployment
-- [ ] FastAPI deployment
-- [ ] Managed PostgreSQL, backups and restore drill
-- [ ] Production logging, monitoring and alerts
-- [ ] Deployment documentation
-- [ ] Completion report and approval gate
+- [x] Frontend component tests (Vitest + Testing Library, 41 tests)
+- [x] Backend API tests (85 tests against real PostgreSQL)
+- [x] Authentication and permission tests (CSRF, rate limits, cross-user access)
+- [x] Database tests (schema, migrations, `alembic check`, index review)
+- [x] AI provider tests (deterministic engine and isolated provider paths)
+- [x] Responsive UI tests (Pixel 7 journeys, overflow checks)
+- [x] End-to-end workflows (21 desktop + 3 mobile Playwright tests)
+- [x] Performance budgets and page optimization (static and browser budgets)
+- [x] Query/index review (10k notes / 5k tasks, trigram indexes)
+- [x] Accessibility audit (axe WCAG A/AA, 0 violations in audited states)
+- [x] Security review and CSP (nonce scripts, headers, authorization review)
+- [x] Dependency audit (npm production clean; pip-audit clean)
+- [x] Next.js deployment (standalone image behind Caddy)
+- [x] FastAPI deployment (production mode, one worker, healthcheck)
+- [x] PostgreSQL, backups and restore drill (self-hosted Compose volume; managed option documented)
+- [x] Production logging, monitoring and alerts (JSON logs, rotation, health script/webhook)
+- [x] Deployment documentation (runbook, incidents, phase reports)
+- [x] Completion report and approval gate
 
 ## Phase 8 — Mobile Application (blocked until Phase 7 approval)
 
@@ -280,4 +289,4 @@
 - [x] Responsive foundation established
 - [x] Loading/empty/error state plan documented for future modules
 - [x] Existing functionality preserved
-- [x] Every phase documented and tested before approval (Phases 0–3)
+- [x] Every phase documented and tested before approval (Phases 0–7; Phase 7 awaiting approval)

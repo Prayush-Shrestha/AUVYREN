@@ -2,9 +2,8 @@ import type { Metadata } from "next";
 
 import { Sunrise } from "lucide-react";
 
-import { getServerUser } from "@/lib/api/server";
+import { getServerUser, serverApiRequest } from "@/lib/api/server";
 import { firstName } from "@/features/auth/display";
-import { briefingRequest } from "@/lib/api/intelligence";
 import { EmptyState } from "@/components/ui/states";
 import { Card, CardBody, CardHeader } from "@/components/ui/card";
 import type { BriefingResponse } from "@/lib/api/types";
@@ -20,7 +19,9 @@ export default async function IntelligencePage() {
 
   let briefing: BriefingResponse | null;
   try {
-    briefing = await briefingRequest();
+    briefing = await serverApiRequest<BriefingResponse>(
+      "/intelligence/daily-plan",
+    );
   } catch {
     briefing = null;
   }

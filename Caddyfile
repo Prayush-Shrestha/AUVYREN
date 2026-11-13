@@ -1,0 +1,36 @@
+{
+	# Keep the admin API on localhost inside the container for `caddy reload`.
+	admin localhost:2019
+}
+
+https://localhost:8443 {
+	tls internal
+	encode zstd gzip
+
+	# 10 MB is well above the note-size limit enforced by the API and keeps
+	# accidental large uploads from reaching application memory.
+	request_body {
+		max_size 10MB
+	}
+
+	handle /api/* {
+		reverse_proxy api:8000
+	}
+
+	handle /health/* {
+		reverse_proxy api:8000
+	}
+
+	handle {
+		reverse_proxy web:3000
+	}
+
+	header {
+		-Server
+	}
+
+	log {
+		output stdout
+		format json
+	}
+}

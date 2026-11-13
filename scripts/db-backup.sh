@@ -1,165 +1,199 @@
 #!/usr/bin/env bash
-"""
-Backup script for Auvyren PostgreSQL database.
-
-Usage:
-  ./scripts/db-backup.sh              # Backup to default location
-  ./scripts/db-backup.sh /path/to/backup.sql.gz  # Backup to specific file
-  ./scripts/db-backup.sh --restore /path/to/backup.sql.gz  # Restore from backup
-
-Environment variables:
-  POSTGRES_HOST, POSTGRES_PORT, POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB
-  (defaults match docker-compose defaults)
-"""
+#
+# Auvyren PostgreSQL backup and restore.
+#
+# Dumps are custom-format archives produced by pg_dump inside the Compose
+# database container. Binary data never crosses a shell pipeline, so the script
+# behaves the same on Linux, macOS and Git Bash.
+#
+# Usage:
+#   ./scripts/db-backup.sh                 # timestamped backup + checksum
+#   ./scripts/db-backup.sh --list          # list known backups
+#   ./scripts/db-backup.sh --restore FILE  # restore (asks for confirmation)
+#   ./scripts/db-backup.sh --restore FILE --yes
+#
+# Environment:
+#   BACKUP_DIR        destination directory (default: <repo>/backups)
+#   BACKUP_RETENTION_DAYS  delete local dumps older than this (default: 14)
+#   COMPOSE_CMD       override, e.g. "docker compose"
+#   POSTGRES_DB, POSTGRES_USER  must match docker-compose.yml
 
 set -euo pipefail
 
-# Configuration
-PG_HOST="${POSTGRES_HOST:-localhost}"
-PG_PORT="${POSTGRES_PORT:-5432}"
-PG_USER="${POSTGRES_USER:-auvyren}"
-PG_PASSWORD="${POSTGRES_PASSWORD:-auvyren}"
-PG_DB="${POSTGRES_DB:-auvyren}"
-BACKUP_DIR="${BACKUP_DIR:-./backups}"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "$ROOT_DIR"
 
-# Colors for output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[1;33m'
-NC='\033[0m' # No Color
+COMPOSE_CMD="${COMPOSE_CMD:-docker compose}"
+BACKUP_DIR="${BACKUP_DIR:-$ROOT_DIR/backups}"
+RETENTION_DAYS="${BACKUP_RETENTION_DAYS:-14}"
+DB_SERVICE="${DB_SERVICE:-db}"
+CONTAINER_DUMP="/tmp/auvyren-backup.dump"
+CONTAINER_RESTORE="/tmp/auvyren-restore.dump"
 
-log_info() {
-    echo -e "${GREEN}[INFO]${NC} $*"
+read -r -a COMPOSE <<< "$COMPOSE_CMD"
+
+log() { printf '[backup] %s\n' "$*"; }
+fail() { printf '[backup] ERROR: %s\n' "$*" >&2; exit 1; }
+
+# Read the database identity from the running container so the script always
+# matches what Compose actually configured, instead of guessing defaults.
+container_env() {
+  "${COMPOSE[@]}" exec -T "$DB_SERVICE" printenv "$1" | tr -d '\r'
 }
 
-log_warn() {
-    echo -e "${YELLOW}[WARN]${NC} $*"
+require_stack() {
+  "${COMPOSE[@]}" ps --status running --services | grep -qx "$DB_SERVICE" \
+    || fail "database service '$DB_SERVICE' is not running. Start it with: $COMPOSE_CMD up -d db"
 }
 
-log_error() {
-    echo -e "${RED}[ERROR]${NC} $*" >&2
+checksum() {
+  if command -v sha256sum >/dev/null 2>&1; then
+    sha256sum "$1"
+  elif command -v shasum >/dev/null 2>&1; then
+    shasum -a 256 "$1"
+  else
+    fail "sha256sum or shasum is required to verify backups"
+  fi
 }
-
-# Export PGPASSWORD for non-interactive psql
-export PGPASSWORD="${PG_PASSWORD}"
-
-# Create backup directory if it doesn't exist
-mkdir -p "${BACKUP_DIR}"
-
-# Generate backup filename with timestamp
-BACKUP_FILE="${BACKUP_DIR}/auvyren_$(date +%Y%m%d_%H%M%S).sql.gz"
 
 usage() {
-    echo "Usage: $0 [backup_file.sql.gz]"
-    echo "       $0 --restore backup_file.sql.gz"
-    echo ""
-    echo "Environment variables:"
-    echo "  POSTGRES_HOST      Database host (default: localhost)"
-    echo "  POSTGRES_PORT      Database port (default: 5432)"
-    echo "  POSTGRES_USER      Database user (default: auvyren)"
-    echo "  POSTGRES_PASSWORD  Database password (default: auvyren)"
-    echo "  POSTGRES_DB        Database name (default: auvyren)"
-    echo "  BACKUP_DIR         Backup directory (default: ./backups)"
+  sed -n '2,20p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  exit 0
 }
 
-# Create a database backup
+list_backups() {
+  mkdir -p "$BACKUP_DIR"
+  if ! compgen -G "$BACKUP_DIR/auvyren_*.dump" >/dev/null; then
+    log "no backups in $BACKUP_DIR"
+    return 0
+  fi
+  local file
+  for file in "$BACKUP_DIR"/auvyren_*.dump; do
+    printf '%s  %8s\n' "$(basename "$file")" "$(du -h "$file" | cut -f1)"
+  done
+}
+
 backup() {
-    local target_file="${1:-${BACKUP_FILE}}"
+  require_stack
 
-    log_info "Starting database backup to ${target_file}..."
+  local pg_user pg_db stamp target sidecar
+  pg_user="$(container_env POSTGRES_USER)"
+  pg_db="$(container_env POSTGRES_DB)"
+  stamp="$(date -u +%Y%m%dT%H%M%SZ)"
+  mkdir -p "$BACKUP_DIR"
+  target="$BACKUP_DIR/auvyren_${stamp}.dump"
+  sidecar="$target.sha256"
 
-    # Check if database is reachable
-    if ! pg_isready -h "${PG_HOST}" -p "${PG_PORT}" -U "${PG_USER}" -d "${PG_DB}" > /dev/null 2>&1; then
-        log_error "Cannot connect to PostgreSQL at ${PG_HOST}:${PG_PORT}"
-        exit 1
-    fi
+  log "dumping database '$pg_db' as '$pg_user'"
+  "${COMPOSE[@]}" exec -T "$DB_SERVICE" \
+    pg_dump -U "$pg_user" -d "$pg_db" \
+    --format=custom --compress=9 --no-owner --no-acl \
+    --file="$CONTAINER_DUMP"
 
-    # Create backup
-    pg_dump \
-        --host="${PG_HOST}" \
-        --port="${PG_PORT}" \
-        --username="${PG_USER}" \
-        --dbname="${PG_DB}" \
-        --no-password \
-        --no-password \
-        --verbose \
-        --verbose \
-        --no-password \
-        --format=custom \
-        --compress=9 \
-        --file="${target_file}" \
-        2>&1
+  "${COMPOSE[@]}" cp "$DB_SERVICE:$CONTAINER_DUMP" "$target"
+  "${COMPOSE[@]}" exec -T "$DB_SERVICE" rm -f "$CONTAINER_DUMP"
 
-    if [ $? -ne 0 ]; then
-        log_error "Backup failed"
-        exit 1
-    fi
+  [ -s "$target" ] || fail "pg_dump produced an empty archive"
 
-    # Get file size
-    local size
-    size=$(du -h "${target_file}" | cut -f1)
+  checksum "$target" > "$sidecar"
+  chmod 600 "$target" "$sidecar" 2>/dev/null || true
 
-    log_info "Backup completed successfully: ${target_file} (${size})"
+  log "wrote $target ($(du -h "$target" | cut -f1))"
+  log "sha256 $(cut -d' ' -f1 "$sidecar")"
+
+  prune
 }
 
-# Restore from backup
+prune() {
+  [ "$RETENTION_DAYS" -ge 1 ] 2>/dev/null || return 0
+  local removed
+  removed="$(find "$BACKUP_DIR" -maxdepth 1 -type f \
+    \( -name 'auvyren_*.dump' -o -name 'auvyren_*.dump.sha256' \) \
+    -mtime +"$RETENTION_DAYS" -print -delete | wc -l | tr -d ' ')"
+  if [ "$removed" -gt 0 ]; then
+    log "pruned $removed file(s) older than $RETENTION_DAYS day(s)"
+  fi
+}
+
 restore() {
-    local backup_file="$1"
+  local archive="$1" confirm="${2:-}"
+  [ -f "$archive" ] || fail "backup not found: $archive"
+  [ -s "$archive" ] || fail "backup is empty: $archive"
+  require_stack
 
-    if [[ ! -f "${backup_file}" ]]; then
-        log_error "Backup file not found: ${backup_file}"
-        exit 1
+  if [ -f "$archive.sha256" ]; then
+    log "verifying checksum"
+    local expected actual
+    expected="$(cut -d' ' -f1 "$archive.sha256")"
+    actual="$(checksum "$archive" | cut -d' ' -f1)"
+    [ "$expected" = "$actual" ] || fail "checksum mismatch for $archive"
+  else
+    log "WARNING: no .sha256 sidecar; skipping integrity check"
+  fi
+
+  local pg_user pg_db
+  pg_user="$(container_env POSTGRES_USER)"
+  pg_db="$(container_env POSTGRES_DB)"
+
+  if [ "$confirm" != "--yes" ]; then
+    printf '[backup] This replaces database "%s" with %s.\n' "$pg_db" "$archive"
+    printf '[backup] The API, web and proxy containers will be stopped.\n'
+    printf 'Continue? (y/N): '
+    local reply
+    read -r reply
+    [[ "$reply" =~ ^[Yy]$ ]] || { log "restore cancelled"; exit 0; }
+  fi
+
+  log "copying archive into the database container"
+  "${COMPOSE[@]}" cp "$archive" "$DB_SERVICE:$CONTAINER_RESTORE"
+
+  log "stopping API, web and proxy"
+  "${COMPOSE[@]}" stop api web caddy >/dev/null
+
+  trap '"${COMPOSE[@]}" exec -T "$DB_SERVICE" rm -f "$CONTAINER_RESTORE" >/dev/null 2>&1 || true' EXIT
+
+  log "recreating database '$pg_db'"
+  "${COMPOSE[@]}" exec -T "$DB_SERVICE" dropdb -U "$pg_user" --if-exists --force "$pg_db"
+  "${COMPOSE[@]}" exec -T "$DB_SERVICE" createdb -U "$pg_user" "$pg_db"
+
+  log "restoring archive"
+  "${COMPOSE[@]}" exec -T "$DB_SERVICE" \
+    pg_restore -U "$pg_user" -d "$pg_db" \
+    --no-owner --no-acl --exit-on-error "$CONTAINER_RESTORE"
+
+  log "restore complete; starting the stack"
+  "${COMPOSE[@]}" up -d
+
+  log "waiting for readiness"
+  local attempt
+  for attempt in $(seq 1 30); do
+    if "${COMPOSE[@]}" ps --status running --services | grep -qx api \
+      && "${COMPOSE[@]}" ps --status running --services | grep -qx web; then
+      log "api and web are running"
+      break
     fi
-
-    log_warn "WARNING: This will DROP and RECREATE the database ${PG_DB}"
-    log_warn "All existing data will be lost."
-    read -p "Are you sure you want to continue? (y/N): " -r
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        log_info "Restore cancelled"
-        exit 0
-    fi
-
-    log_info "Starting restore from ${backup_file}..."
-
-    # Drop and recreate database
-    PGPASSWORD="${PG_PASSWORD}" psql -h "${PG_HOST}" -p "${PG_PORT}" -U "${PG_USER}" -d postgres -c "DROP DATABASE IF EXISTS ${PG_DB};" 2>/dev/null || true
-    PGPASSWORD="${PG_PASSWORD}" psql -h "${PG_HOST}" -p "${PG_PORT}" -U "${PG_USER}" -d postgres -c "CREATE DATABASE ${PG_DB};" 2>/dev/null || true
-
-    # Restore from backup
-    PGPASSWORD="${PG_PASSWORD}" pg_restore \
-        --host="${PG_HOST}" \
-        --port="${PG_PORT}" \
-        --username="${PG_USER}" \
-        --dbname="${PG_DB}" \
-        --no-password \
-        --no-owner \
-        --verbose \
-        "${backup_file}" \
-        2>&1
-
-    if [ $? -ne 0 ]; then
-        log_error "Restore failed"
-        exit 1
-    fi
-
-    log_info "Restore completed successfully"
+    sleep 2
+  done
 }
 
-# Main logic
 case "${1:-}" in
-    ""|--help|-h)
-        usage
-        exit 0
-        ;;
-    --restore)
-        if [[ -z "${2:-}" ]]; then
-            log_error "Please specify a backup file to restore from"
-            usage
-            exit 1
-        fi
-        restore "${2}"
-        ;;
-    *)
-        backup "${1}"
-        ;;
+  ""|--backup)
+    backup
+    ;;
+  --restore)
+    [ -n "${2:-}" ] || fail "specify an archive with --restore FILE"
+    shift
+    archive="$1"
+    shift || true
+    restore "$archive" "${1:-}"
+    ;;
+  --list)
+    list_backups
+    ;;
+  --help|-h)
+    usage
+    ;;
+  *)
+    fail "unknown argument '$1' (try --help)"
+    ;;
 esac

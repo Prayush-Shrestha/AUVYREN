@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
 
-import { getServerUser } from "@/lib/api/server";
+import { getServerUser, serverApiRequest } from "@/lib/api/server";
 import { firstName } from "@/features/auth/display";
-import { listNotesRequest } from "@/lib/api/intelligence";
-import type { NoteResponse } from "@/lib/api/types";
+import type { NoteListResponse, NoteResponse } from "@/lib/api/types";
 
 export const metadata: Metadata = {
   title: "Notes",
@@ -16,10 +15,9 @@ export default async function NotesPage() {
 
   let notes: NoteResponse[] = [];
   try {
-    const response = await listNotesRequest({
-      limit: 50,
-      offset: 0,
-    });
+    const response = await serverApiRequest<NoteListResponse>(
+      "/knowledge?limit=50&offset=0",
+    );
     notes = response.notes;
   } catch {
     notes = [];

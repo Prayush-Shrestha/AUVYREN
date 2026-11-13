@@ -3,9 +3,9 @@
 **Engine:** PostgreSQL 17
 **Access:** SQLAlchemy 2 async + asyncpg
 **Migrations:** Alembic
-**Current revision:** `11bcf3975cb7` — initial platform schema
-**Status:** Applied to Phase 0 development database and verified with upgrade, downgrade,
-upgrade and `alembic check`.
+**Current revision:** `c9d0e1f2a3b4` — Phase 7 search indexes and note-link constraints
+**Status:** 22 application tables. Migrations apply cleanly and `alembic check` reports no
+model drift against PostgreSQL 17.
 
 ## 1. Conventions
 
@@ -264,7 +264,10 @@ views; they are not duplicated into `calendar_events`.
 | Delete goal | Milestones cascade |
 | Delete habit | Habit logs cascade |
 
-Account export/deletion endpoints are Phase 6. Until then, no destructive account flow exists.
+Account export and deletion endpoints are implemented. Deletion requires a confirmation
+token stored only as a hash and cascades from `users`; export metadata is recorded in
+`data_exports`. Export artifact generation is not implemented, so the download endpoint never
+returns a file.
 
 ## 6. Index and query strategy
 
@@ -273,31 +276,30 @@ Account export/deletion endpoints are Phase 6. Until then, no destructive accoun
   composite index.
 - Habit consistency queries use `(user_id, log_date)`.
 - Calendar ranges use `(user_id, starts_at)`.
-- Search will start with case-insensitive prefix/substring queries; PostgreSQL trigram or
-  full-text indexes will be added only after measuring real data.
-- Query shape changes must be accompanied by `EXPLAIN ANALYZE` evidence in Phase 7.
+- Knowledge search uses `ILIKE` over title, content and tags, backed by `pg_trgm` GIN indexes
+  (`ix_notes_title_trgm`, `ix_notes_content_trgm`, `ix_notes_tags_trgm`).
+- Note-link edges are unique (`uq_note_links_edge`) and self-links are rejected.
+- Query shape changes must be accompanied by `EXPLAIN (ANALYZE, BUFFERS)` evidence; the Phase 7
+  review is recorded in `docs/reports/phase-7-performance.md`.
 - No N+1 queries: async SQLAlchemy requires explicit eager loading; services must not lazily
   access relationships during serialization.
 
-## 7. Planned tables (not implemented)
-
-These are recorded to preserve architecture context. They will be designed in detail and
-added by their phase migration; they must not be treated as part of the current database.
+## 7. Additional implemented tables
 
 | Phase | Table | Purpose |
 | --- | --- | --- |
-| 4 | `ai_provider_configs` | Per-user provider, model, local endpoint, encrypted cloud key, enabled state |
+| 4 | `ai_provider_configs` | Per-user provider, model and local endpoint; `encrypted_secret` is reserved and currently always `NULL` |
 | 4 | `ai_insights` | Generated briefings/recommendations with provider, model, provenance and dismissal |
-| 4 | `ai_usage_logs` | Requests, tokens, cost and errors (primarily Phase 6 cloud) |
+| 4 | `ai_usage_logs` | Requests, tokens, cost and errors |
 | 5 | `notes` | Unified notes, journal entries, decision records and reviews with Markdown content |
 | 5 | `note_links` | Typed links between notes and goals/projects/tasks/notes |
-| 6 | `sync_devices` | Registered clients and last sync markers |
-| 6 | `sync_events` / change log | Conflict detection and resumable synchronization |
-| 6 | `export_jobs` | Async data export status and artifact metadata |
-| 6 | `security_events` | Login, revocation, export, deletion and AI consent audit trail |
+| 6 | `ai_consents` | Per-provider consent grants and revocations |
+| 6 | `data_exports` | Export request status and generated artifact metadata |
+| 6 | `account_deletions` | Hashed confirmation token and deletion lifecycle |
+| 6 | `audit_events` | Login, revocation, export, deletion and AI consent audit trail |
 
-Before Phase 6 sync, mutable entities will gain an explicit revision/version column or
-equivalent conflict token. Last-write-wins will not be assumed silently.
+Sync device/change-log tables are **not** implemented in this release. No last-write-wins
+sync policy is claimed or enforced; the mobile client (Phase 8) must not assume one.
 
 ## 8. Migration policy
 

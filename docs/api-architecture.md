@@ -8,7 +8,11 @@
 The API is the only authority for data access and user scoping. The frontend never talks
 directly to PostgreSQL or AI providers.
 
-## 1. Implemented endpoints (Phase 0)
+## 1. Operational and meta endpoints
+
+Product endpoints are grouped under `/api/v1` (auth, tasks, projects, goals, habits,
+routines, calendar, intelligence, knowledge, privacy). The OpenAPI schema is the source of
+truth when docs are enabled. The stable operational surface is:
 
 | Method | Path | Purpose |
 | --- | --- | --- |

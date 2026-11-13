@@ -1,7 +1,8 @@
 # Security and Authentication Strategy
 
-**Status:** Phase 2 is complete. Authentication endpoints, CSRF enforcement, rate limiting
-and session management are implemented and verified against real PostgreSQL.
+**Status:** Phase 7 is complete — awaiting approval. Authentication, CSRF, rate limiting,
+session management, CSP, dependency audits and the production deployment boundary are
+implemented and verified against real PostgreSQL and a live HTTPS stack.
 
 ## 1. Security goals
 
@@ -27,7 +28,7 @@ and session management are implemented and verified against real PostgreSQL.
 | Cloud AI data leakage | Explicit consent, data minimization, local-only default, server-side calls |
 | Account enumeration | Uniform login/reset responses and timing awareness |
 | Dependency compromise | Lockfile, audit in CI, minimal dependencies, review upgrades |
-| Backup/media exposure | Private managed PostgreSQL, encrypted backups, no public dumps (Phase 7) |
+| Backup/media exposure | Private PostgreSQL, loopback-only ports, permission-restricted checksummed backups, no public dumps (Phase 7) |
 
 Out of scope for the initial web release: nation-state adversaries, a compromised user device,
 and malicious users with server root access. Self-hosted operators are trusted infrastructure
@@ -64,7 +65,8 @@ owners; the application still isolates user accounts.
   are throttled (e.g. once per 5 minutes) to reduce writes.
 - Login rotates/creates a session; logout revokes it; users can revoke other sessions.
 - Session tokens are compared in constant time where relevant.
-- A scheduled cleanup removes expired/revoked rows after a retention window (Phase 7 operational task).
+- Expired and revoked sessions are rejected during authentication. Physical removal of old
+  rows is left to an operator-run SQL/cron job; it is not automated in this release.
 
 ### CSRF
 
@@ -100,7 +102,9 @@ owners; the application still isolates user accounts.
   routine and verify ownership.
 - Cross-user resource access returns **404**, not 403, to avoid confirming existence.
 - The frontend route guard is UX only. The API authorizes independently.
-- Database cascades ensure account deletion removes owned data; export precedes deletion.
+- Database cascades ensure account deletion removes owned data. Export is a request/status
+  workflow only; artifact generation is not implemented, and deletion does not require a
+  prior export.
 - IDOR tests are mandatory for every resource added in Phase 3 and repeated in Phase 7.
 
 PostgreSQL row-level security is not used in the initial architecture. Application-level
@@ -115,8 +119,10 @@ multi-tenant analytics make it necessary.
 - API responses set `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`,
   `Referrer-Policy: strict-origin-when-cross-origin`, a restrictive `Permissions-Policy` and
   `Cross-Origin-Resource-Policy: same-site`.
-- The web app adds a Content Security Policy, frame protections and route-appropriate headers
-  in Phase 1/7. The API CSP is not a substitute for the web CSP.
+- The web app issues a per-document nonce CSP (`script-src 'self' 'nonce-…'
+  'strict-dynamic'`), frame protections and route-appropriate headers. `'unsafe-inline'` is
+  limited to styles; `'unsafe-eval'` appears only in development. The API sends its own
+  restrictive production CSP; it is not a substitute for the web CSP.
 - No credentials or personal data in URLs or query strings.
 - Request body size limits are enforced at the proxy and in application validation.
 
@@ -151,8 +157,9 @@ multi-tenant analytics make it necessary.
 
 ## 8. Data export and account deletion (Phase 6)
 
-- Export includes user-authored records and generated insights with provenance in a portable
-  format; secrets are excluded.
+- The export API records a request and its status. It does **not** generate a downloadable
+  artifact yet; the download endpoint only reports that no artifact is ready. No export is
+  claimed to contain user data.
 - Deletion requires re-authentication and explicit confirmation.
 - Deletion is transactional and cascades from the user row. Backups expire according to the
   documented retention policy; deletion from backups is handled operationally.
@@ -164,7 +171,10 @@ multi-tenant analytics make it necessary.
 - Never log bodies by default; especially not auth, journal or AI prompts.
 - Authentication failures, rate-limit hits, session revocations, exports, deletions and AI
   consent changes are security events (audit table in Phase 6).
-- Production logs are JSON; centralized retention and alerting are Phase 7.
+- Production logs are JSON with request IDs; Docker rotates them (10 MB × 3). Caddy writes
+  JSON access logs. Retention is local unless the operator ships logs elsewhere.
+- `scripts/stack-health.sh` checks the HTTPS edge, database readiness, backup freshness and
+  disk headroom, and can POST a failure to an operator webhook.
 - Health endpoints do not reveal schema or dependency credentials.
 
 ## 10. Implemented vs planned
@@ -180,9 +190,11 @@ multi-tenant analytics make it necessary.
 | Opaque sessions, secure cookies, CSRF | ✅ | 2 |
 | Password reset email flow | ✅ | 2 |
 | Login rate limiting and security events | ✅ | 2 |
-| AI consent and encrypted provider keys | ✅ | 4 |
+| AI consent and provider isolation | ✅ | 6 |
 | Export, deletion, audit trail | ✅ | 6 |
-| CSP, dependency audit in CI, penetration tests | — | 7 |
+| Nonce CSP, security headers, dependency audit in CI | ✅ | 7 |
+| Rate-limit, CSP, cookie and cross-user tests in CI | ✅ | 7 |
+| External penetration test and screen-reader review | — | future |
 
 ## 11. Security review gates
 

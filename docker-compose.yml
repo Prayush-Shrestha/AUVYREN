@@ -1,5 +1,49 @@
 name: auvyren
 
+# Shared API configuration for the one-shot migration job and the long-running
+# API container. Values are explicit so a developer's local `.env` cannot
+# silently weaken the production stack.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
+x-api-environment: &api-environment
+  APP_ENV: production
+  APP_NAME: Auvyren API
+  APP_VERSION: 0.1.0
+  DEBUG: "false"
+  DOCS_ENABLED: "false"
+  API_V1_PREFIX: /api/v1
+  DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-auvyren}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}@db:5432/${POSTGRES_DB:-auvyren}
+  SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set in .env}
+  CORS_ORIGINS: ${PUBLIC_ORIGIN:-https://localhost:8443}
+  ALLOWED_HOSTS: localhost,127.0.0.1,api
+  WEB_APP_URL: ${PUBLIC_ORIGIN:-https://localhost:8443}
+  SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-auv_session}
+  SESSION_COOKIE_SECURE: "true"
+  SESSION_COOKIE_DOMAIN: ""
+  SESSION_TTL_DAYS: ${SESSION_TTL_DAYS:-30}
+  SESSION_ABSOLUTE_TTL_DAYS: ${SESSION_ABSOLUTE_TTL_DAYS:-90}
+  SESSION_REFRESH_MINUTES: ${SESSION_REFRESH_MINUTES:-5}
+  CSRF_COOKIE_NAME: ${CSRF_COOKIE_NAME:-auv_csrf}
+  CSRF_HEADER_NAME: ${CSRF_HEADER_NAME:-X-CSRF-Token}
+  PASSWORD_RESET_TTL_MINUTES: ${PASSWORD_RESET_TTL_MINUTES:-30}
+  RATE_LIMIT_ENABLED: "true"
+  EMAIL_PROVIDER: smtp
+  EMAIL_FROM: ${EMAIL_FROM:-no-reply@auvyren.local}
+  # Mailpit captures reset mail locally; no external provider is required for
+  # a self-hosted deployment. Swap these values for a real SMTP relay.
+  SMTP_HOST: mailpit
+  SMTP_PORT: "1025"
+  SMTP_USERNAME: ""
+  SMTP_PASSWORD: ""
+  SMTP_USE_TLS: "false"
+  OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+  OLLAMA_REQUEST_TIMEOUT_SECONDS: ${OLLAMA_REQUEST_TIMEOUT_SECONDS:-120}
+  AI_KEY_ENCRYPTION_KEY: ${AI_KEY_ENCRYPTION_KEY:-}
+
 services:
   db:
     image: postgres:17-alpine
@@ -9,7 +53,8 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-auvyren}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set in .env}
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      # Loopback only: local development and database tooling connect here.
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - auvyren_pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -17,73 +62,110 @@ services:
       interval: 5s
       timeout: 5s
       retries: 12
+    stop_grace_period: 30s
+    logging: *default-logging
+
+  mailpit:
+    image: axllent/mailpit:v1.27
+    restart: unless-stopped
+    environment:
+      MP_MAX_MESSAGES: "500"
+    ports:
+      # Local operator UI for captured password-reset messages.
+      - "127.0.0.1:${MAILPIT_UI_PORT:-8025}:8025"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8025/livez"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    logging: *default-logging
+
+  migrate:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment: *api-environment
+    depends_on:
+      db:
+        condition: service_healthy
+    command: ["alembic", "upgrade", "head"]
+    restart: "no"
+    logging: *default-logging
 
   api:
     build:
       context: .
       dockerfile: apps/api/Dockerfile
     restart: unless-stopped
+    environment: *api-environment
     depends_on:
       db:
         condition: service_healthy
-    environment:
-      APP_ENV: ${APP_ENV:-production}
-      APP_NAME: ${APP_NAME:-Auvyren API}
-      APP_VERSION: ${APP_VERSION:-0.1.0}
-      DEBUG: ${DEBUG:-false}
-      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL must be set in .env}
-      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY must be set in .env}
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000}
-      ALLOWED_HOSTS: ${ALLOWED_HOSTS:-localhost,127.0.0.1}
-      WEB_APP_URL: ${WEB_APP_URL:?WEB_APP_URL must be set in .env}
-      DOCS_ENABLED: ${DOCS_ENABLED:-false}
-      API_V1_PREFIX: ${API_V1_PREFIX:-/api/v1}
-      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-auv_session}
-      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-true}
-      SESSION_COOKIE_DOMAIN: ${SESSION_COOKIE_DOMAIN:-}
-      SESSION_TTL_DAYS: ${SESSION_TTL_DAYS:-30}
-      SESSION_ABSOLUTE_TTL_DAYS: ${SESSION_ABSOLUTE_TTL_DAYS:-90}
-      SESSION_REFRESH_MINUTES: ${SESSION_REFRESH_MINUTES:-5}
-      CSRF_COOKIE_NAME: ${CSRF_COOKIE_NAME:-auv_csrf}
-      CSRF_HEADER_NAME: ${CSRF_HEADER_NAME:-X-CSRF-Token}
-      PASSWORD_RESET_TTL_MINUTES: ${PASSWORD_RESET_TTL_MINUTES:-30}
-      EMAIL_PROVIDER: ${EMAIL_PROVIDER:-console}
-      EMAIL_FROM: ${EMAIL_FROM:-no-reply@auvyren.local}
-      SMTP_HOST: ${SMTP_HOST:-}
-      SMTP_PORT: ${SMTP_PORT:-587}
-      SMTP_USERNAME: ${SMTP_USERNAME:-}
-      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
-      SMTP_USE_TLS: ${SMTP_USE_TLS:-true}
-      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://localhost:11434}
-      OLLAMA_REQUEST_TIMEOUT_SECONDS: ${OLLAMA_REQUEST_TIMEOUT_SECONDS:-120}
-      AI_KEY_ENCRYPTION_KEY: ${AI_KEY_ENCRYPTION_KEY:-}
-    ports:
-      - "${API_PORT:-8000}:8000"
+      migrate:
+        condition: service_completed_successfully
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/health/ready"]
+      interval: 15s
+      timeout: 5s
+      start_period: 15s
+      retries: 5
+    stop_grace_period: 30s
+    logging: *default-logging
 
   web:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
+      args:
+        # Browser-facing origin. Same-origin through Caddy, so no CORS.
+        NEXT_PUBLIC_API_BASE_URL: ${PUBLIC_ORIGIN:-https://localhost:8443}/api/v1
     restart: unless-stopped
+    environment:
+      API_INTERNAL_URL: http://api:8000/api/v1
+      WEB_APP_URL: ${PUBLIC_ORIGIN:-https://localhost:8443}
+      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-auv_session}
+      CSRF_COOKIE_NAME: ${CSRF_COOKIE_NAME:-auv_csrf}
+      CSRF_HEADER_NAME: ${CSRF_HEADER_NAME:-X-CSRF-Token}
     depends_on:
       api:
         condition: service_healthy
-    environment:
-      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000/api/v1}
-      API_INTERNAL_URL: ${API_INTERNAL_URL:-http://api:8000/api/v1}
-      AUV_SESSION_COOKIE_NAME: ${AUV_SESSION_COOKIE_NAME:-auv_session}
-    ports:
-      - "${WEB_PORT:-3000}:3000"
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:3000/"]
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://127.0.0.1:3000/').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      start_period: 20s
+      retries: 5
+    stop_grace_period: 30s
+    logging: *default-logging
+
+  caddy:
+    image: caddy:2.10-alpine
+    restart: unless-stopped
+    ports:
+      - "${APP_HTTPS_PORT:-8443}:8443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+      web:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "caddy", "validate", "--config", "/etc/caddy/Caddyfile"]
       interval: 30s
       timeout: 10s
       retries: 3
+    logging: *default-logging
 
 volumes:
   auvyren_pgdata:
+  caddy_data:
+  caddy_config:

@@ -17,7 +17,6 @@ from sqlalchemy import (
     Index,
     String,
     Text,
-    text,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -50,7 +49,7 @@ class AIConsent(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         DateTime(timezone=True), nullable=True
     )
     policy_version: Mapped[str] = mapped_column(
-        String(32), nullable=False, server_default=text("1.0")
+        String(32), nullable=False, server_default="1.0"
     )
 
     user: Mapped[User] = relationship("User", back_populates="ai_consents")

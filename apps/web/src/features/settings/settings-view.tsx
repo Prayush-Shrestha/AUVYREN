@@ -521,7 +521,12 @@ function SessionsCard() {
             }}
           />
         ) : sessions === null ? (
-          <div className="space-y-3" aria-label="Loading sessions" aria-busy="true">
+          <div
+            className="space-y-3"
+            role="status"
+            aria-label="Loading sessions"
+            aria-busy="true"
+          >
             <Skeleton className="h-24 w-full rounded-xl" />
             <Skeleton className="h-24 w-full rounded-xl" />
           </div>
@@ -602,7 +607,12 @@ export function SettingsView() {
 
   if (!user) {
     return (
-      <div className="space-y-4" aria-busy="true" aria-label="Loading settings">
+      <div
+        className="space-y-4"
+        role="status"
+        aria-busy="true"
+        aria-label="Loading settings"
+      >
         <Skeleton className="h-24 w-full max-w-2xl rounded-2xl" />
         <Skeleton className="h-64 w-full rounded-2xl" />
       </div>

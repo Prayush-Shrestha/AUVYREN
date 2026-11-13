@@ -1,7 +1,17 @@
 """Import every model so Alembic and SQLAlchemy see the complete metadata."""
 
+from app.db.base import Base
+from app.db.models.ai import AIInsight, AIProviderConfig, AIUsageLog
 from app.db.models.auth import PasswordResetToken, UserSession
 from app.db.models.calendar import CalendarEvent
+from app.db.models.enums import (
+    GoalStatus,
+    HabitSchedule,
+    MilestoneStatus,
+    ProjectStatus,
+    TaskPriority,
+    TaskStatus,
+)
 from app.db.models.goal import Goal
 from app.db.models.habit import Habit, HabitLog
 from app.db.models.knowledge import Note, NoteKind, NoteLink, NoteSourceType
@@ -19,9 +29,9 @@ __all__ = [
     "AIConsent",
     "AccountDeletion",
     "AuditEvent",
-    "DataExport",
     "Base",
     "CalendarEvent",
+    "DataExport",
     "Goal",
     "GoalStatus",
     "Habit",

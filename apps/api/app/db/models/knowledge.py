@@ -14,6 +14,7 @@ from sqlalchemy import (
     Index,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -49,6 +50,24 @@ class Note(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         Index("ix_notes_user_kind", "user_id", "kind"),
         Index("ix_notes_user_created", "user_id", "created_at"),
         Index("ix_notes_source", "source_type", "source_id"),
+        Index(
+            "ix_notes_title_trgm",
+            "title",
+            postgresql_using="gin",
+            postgresql_ops={"title": "gin_trgm_ops"},
+        ),
+        Index(
+            "ix_notes_content_trgm",
+            "content",
+            postgresql_using="gin",
+            postgresql_ops={"content": "gin_trgm_ops"},
+        ),
+        Index(
+            "ix_notes_tags_trgm",
+            "tags",
+            postgresql_using="gin",
+            postgresql_ops={"tags": "gin_trgm_ops"},
+        ),
     )
 
     user_id: Mapped[uuid.UUID] = mapped_column(
@@ -97,6 +116,16 @@ class NoteLink(Base, UUIDPrimaryKeyMixin, TimestampMixin):
 
     __tablename__ = "note_links"
     __table_args__ = (
+        UniqueConstraint(
+            "source_note_id",
+            "target_note_id",
+            "link_type",
+            name="uq_note_links_edge",
+        ),
+        CheckConstraint(
+            "source_note_id <> target_note_id",
+            name="note_links_no_self_link",
+        ),
         Index("ix_note_links_source", "source_note_id"),
         Index("ix_note_links_target", "target_note_id"),
         Index("ix_note_links_type", "link_type"),

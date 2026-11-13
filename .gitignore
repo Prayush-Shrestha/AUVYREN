@@ -39,3 +39,9 @@ uploads/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Playwright, backups and exported local CA certificates
+playwright-report/
+test-results/
+backups/
+caddy-root.crt

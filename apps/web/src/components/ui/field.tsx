@@ -1,4 +1,4 @@
-import { forwardRef } from "react";
+import { cloneElement, forwardRef, isValidElement } from "react";
 import { ChevronDown, CircleAlert, CircleCheck } from "lucide-react";
 
 import { cn } from "@/lib/cn";
@@ -32,6 +32,23 @@ export function Field({
   const state = error ? "error" : success ? "success" : hint ? "hint" : undefined;
   const messageId = fieldMessageId(htmlFor, state);
 
+  // Wire the visible hint/error to the control without asking every caller to
+  // remember the id. Existing aria-describedby values are preserved.
+  const describedBy = isValidElement<{ "aria-describedby"?: string }>(children)
+    ? [
+        ...new Set(
+          [
+            children.props["aria-describedby"],
+            state ? messageId : undefined,
+          ].filter(Boolean),
+        ),
+      ].join(" ") || undefined
+    : undefined;
+  const control =
+    describedBy && isValidElement<Record<string, unknown>>(children)
+      ? cloneElement(children, { "aria-describedby": describedBy })
+      : children;
+
   return (
     <div className={cn("space-y-2", className)}>
       <div className="flex items-baseline justify-between gap-3">
@@ -47,7 +64,7 @@ export function Field({
           </span>
         ) : null}
       </div>
-      {children}
+      {control}
       {error ? (
         <p
           id={messageId}

@@ -14,25 +14,14 @@ const venvPython =
   process.platform === "win32"
     ? path.join(apiDir, ".venv", "Scripts", "python.exe")
     : path.join(apiDir, ".venv", "bin", "python");
+// CI installs into the runner's Python; developers use the project venv.
+const python = existsSync(venvPython)
+  ? venvPython
+  : process.platform === "win32"
+    ? "python"
+    : "python3";
 
-if (!existsSync(venvPython)) {
-  console.error(
-    [
-      "The API virtual environment was not found.",
-      "Create it and install dependencies first:",
-      "",
-      "  cd apps/api",
-      "  python -m venv .venv",
-      process.platform === "win32"
-        ? "  .venv\\Scripts\\python -m pip install -e \".[dev]\""
-        : "  .venv/bin/python -m pip install -e '.[dev]'",
-      "",
-    ].join("\n"),
-  );
-  process.exit(1);
-}
-
-const child = spawn(venvPython, process.argv.slice(2), {
+const child = spawn(python, process.argv.slice(2), {
   cwd: apiDir,
   stdio: "inherit",
   env: { ...process.env, PYTHONUNBUFFERED: "1" },

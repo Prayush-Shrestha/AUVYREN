@@ -11,7 +11,14 @@ from typing import Literal
 from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-ROOT_DIR = Path(__file__).resolve().parents[4]
+ROOT_DIR = next(
+    (
+        parent
+        for parent in Path(__file__).resolve().parents
+        if (parent / ".env.example").exists()
+    ),
+    Path.cwd(),
+)
 
 
 class Settings(BaseSettings):
@@ -51,6 +58,10 @@ class Settings(BaseSettings):
 
     # Password reset
     password_reset_ttl_minutes: int = Field(default=30, ge=5, le=120)
+
+    # Abuse controls. Keep enabled in production; end-to-end tests disable it
+    # because the API suite covers the limiter directly.
+    rate_limit_enabled: bool = True
 
     # Email
     email_provider: Literal["console", "smtp"] = "console"
