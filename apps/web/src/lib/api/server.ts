@@ -21,8 +21,7 @@ function serverWebOrigin() {
   return origin.replace(/\/$/, "");
 }
 
-async function forwardedCookieHeader() {
-  const cookieStore = await cookies();
+async function forwardedCookieHeader(cookieStore: Awaited<ReturnType<typeof cookies>>) {
   return cookieStore
     .getAll()
     .map(({ name, value }) => `${name}=${value}`)
@@ -42,7 +41,7 @@ export async function serverApiRequest<T>(
   const cookieStore = await cookies();
   const headers: Record<string, string> = {
     Accept: "application/json",
-    Cookie: await forwardedCookieHeader(),
+    Cookie: await forwardedCookieHeader(cookieStore),
   };
 
   if (init.body !== undefined) {
@@ -92,7 +91,7 @@ export const getServerUser = cache(async (): Promise<AuthUser | null> => {
   const response = await fetch(`${serverApiBaseUrl()}/auth/me`, {
     headers: {
       Accept: "application/json",
-      Cookie: await forwardedCookieHeader(),
+      Cookie: await forwardedCookieHeader(cookieStore),
     },
     cache: "no-store",
   });

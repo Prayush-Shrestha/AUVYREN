@@ -19,6 +19,7 @@ from app.db.models.milestone import Milestone
 from app.db.models.privacy import AccountDeletion, AIConsent, AuditEvent, DataExport
 from app.db.models.project import Project
 from app.db.models.routine import Routine, RoutineStep
+from app.db.models.sync import SyncDevice, SyncEvent
 from app.db.models.task import Task
 from app.db.models.user import User, UserSettings
 
@@ -48,6 +49,8 @@ __all__ = [
     "ProjectStatus",
     "Routine",
     "RoutineStep",
+    "SyncDevice",
+    "SyncEvent",
     "Task",
     "TaskPriority",
     "TaskStatus",

@@ -45,3 +45,9 @@ playwright-report/
 test-results/
 backups/
 caddy-root.crt
+
+# Flutter
+.dart_tool/
+build/
+*.iml
+.android/

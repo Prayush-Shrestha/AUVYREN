@@ -13,6 +13,8 @@ TEST_EMAIL_DOMAINS = (
     "phase3.auvyren.app",
     "phase6.auvyren.app",
     "phase7.auvyren.app",
+    "phase8.auvyren.app",
+    "example.com",
 )
 
 

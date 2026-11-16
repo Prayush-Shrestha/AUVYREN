@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from app.db.models.auth import UserSession
     from app.db.models.knowledge import Note
     from app.db.models.privacy import AccountDeletion, AIConsent, AuditEvent, DataExport
+    from app.db.models.sync import SyncDevice, SyncEvent
 
 
 class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
@@ -67,6 +68,18 @@ class User(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     )
     audit_events: Mapped[list[AuditEvent]] = relationship(
         "AuditEvent",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    sync_devices: Mapped[list[SyncDevice]] = relationship(
+        "SyncDevice",
+        back_populates="user",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )
+    sync_events: Mapped[list[SyncEvent]] = relationship(
+        "SyncEvent",
         back_populates="user",
         cascade="all, delete-orphan",
         passive_deletes=True,

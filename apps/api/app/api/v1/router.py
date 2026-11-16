@@ -12,6 +12,7 @@ from app.api.v1.routes import (
     privacy,
     projects,
     routines,
+    sync,
     tasks,
 )
 
@@ -27,3 +28,4 @@ api_router.include_router(routines.router)
 api_router.include_router(intelligence.router)
 api_router.include_router(knowledge.router)
 api_router.include_router(privacy.router)
+api_router.include_router(sync.router)
