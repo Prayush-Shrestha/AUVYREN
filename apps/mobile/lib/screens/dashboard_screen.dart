@@ -41,10 +41,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
           IconButton(
             icon: const Icon(Icons.logout),
             onPressed: () async {
+              final navigator = Navigator.of(context);
               await auth.logout();
               if (mounted) {
-                Navigator.pushNamedAndRemoveUntil(
-                  context,
+                navigator.pushNamedAndRemoveUntil(
                   '/login',
                   (route) => false,
                 );
@@ -133,10 +133,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
               leading: const Icon(Icons.logout),
               title: const Text('Sign out'),
               onTap: () async {
+                final navigator = Navigator.of(context);
                 await auth.logout();
                 if (mounted) {
-                  Navigator.pushNamedAndRemoveUntil(
-                    context,
+                  navigator.pushNamedAndRemoveUntil(
                     '/login',
                     (route) => false,
                   );
